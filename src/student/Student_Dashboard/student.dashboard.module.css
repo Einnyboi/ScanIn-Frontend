@@ -1,0 +1,210 @@
+/* student.dashboard.module.css */
+
+/* --- Layout Utama --- */
+.container {
+  @apply min-h-screen bg-[#F8FAFC];
+}
+
+.mainContent {
+  @apply max-w-7xl mx-auto px-4 py-6;
+}
+
+/* --- Header --- */
+.header {
+  @apply bg-white border-b border-gray-200 sticky top-0 z-10;
+}
+
+.headerInner {
+  @apply max-w-7xl mx-auto px-4 py-4 flex items-center justify-between;
+}
+
+.headerProfile {
+  @apply flex items-center gap-3;
+}
+
+.avatar {
+  @apply w-12 h-12 rounded-full bg-[#5C3386] flex items-center justify-center;
+}
+
+.userName {
+  @apply font-bold text-gray-900;
+}
+
+.userNim {
+  @apply text-sm text-gray-600;
+}
+
+.btnLogout {
+  @apply flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-[#7D2228] transition-colors;
+}
+
+.hideOnMobile {
+  @apply hidden sm:inline;
+}
+
+/* --- Metrics Section --- */
+.metricsGrid {
+  @apply grid grid-cols-1 md:grid-cols-3 gap-4 mb-6;
+}
+
+.metricCardClickable {
+  @apply bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all text-left;
+}
+
+.metricCard {
+  @apply bg-white rounded-xl p-6 shadow-md;
+}
+
+.metricInner {
+  @apply flex items-center gap-4;
+}
+
+.iconPurple {
+  @apply w-12 h-12 rounded-full bg-[#5C3386] bg-opacity-10 flex items-center justify-center;
+}
+
+.iconYellow {
+  @apply w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center;
+}
+
+.iconRed {
+  @apply w-12 h-12 rounded-full bg-red-100 flex items-center justify-center;
+}
+
+.metricLabel {
+  @apply text-gray-600 text-sm;
+}
+
+.metricValue {
+  @apply text-3xl font-bold text-gray-900;
+}
+
+/* --- Section Global (Schedule & History) --- */
+.sectionCard {
+  @apply bg-white rounded-xl shadow-md p-6 mb-6;
+}
+
+.sectionTitle {
+  @apply text-xl font-bold text-gray-900 mb-4;
+}
+
+/* --- Schedule List --- */
+.scheduleList {
+  @apply space-y-3;
+}
+
+.scheduleItem {
+  @apply border border-gray-200 rounded-lg p-4 hover:border-[#5C3386] transition-colors;
+}
+
+.scheduleItemInner {
+  @apply flex flex-col md:flex-row md:items-center justify-between gap-4;
+}
+
+.scheduleInfo {
+  @apply flex-1;
+}
+
+.scheduleHeader {
+  @apply flex items-center gap-3 mb-2;
+}
+
+.className {
+  @apply font-bold text-gray-900;
+}
+
+.scheduleDetails {
+  @apply text-sm text-gray-600;
+}
+
+.actionButtons {
+  @apply flex gap-2;
+}
+
+.btnPrimary {
+  @apply flex-1 md:flex-none px-4 py-2 bg-[#5C3386] text-white rounded-lg hover:bg-[#4a2a6b] transition-colors flex items-center justify-center gap-2;
+}
+
+.btnOutline {
+  @apply flex-1 md:flex-none px-4 py-2 border border-[#5C3386] text-[#5C3386] rounded-lg hover:bg-[#5C3386] hover:text-white transition-colors flex items-center justify-center gap-2;
+}
+
+/* --- Badges --- */
+.badgeActive {
+  @apply px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full;
+}
+
+.badgeUpcoming {
+  @apply px-3 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full;
+}
+
+.badgeLate {
+  @apply px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full;
+}
+
+/* --- History List --- */
+.historyList {
+  @apply space-y-2;
+}
+
+.historyItem {
+  @apply flex items-center justify-between py-3 border-b border-gray-100 last:border-0;
+}
+
+.historyStatus {
+  @apply flex items-center gap-3;
+}
+
+/* --- QR Modal --- */
+.modalOverlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm;
+}
+
+.modalContent {
+  @apply bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl transform transition-all;
+}
+
+.modalHeader {
+  @apply text-center mb-6;
+}
+
+.modalTitle {
+  @apply text-xl font-bold text-[#5C3386] mb-1;
+}
+
+.modalSubtitle {
+  @apply text-sm text-gray-500;
+}
+
+.qrWrapperOuter {
+  @apply bg-gray-50 p-6 rounded-xl flex items-center justify-center mb-6 border border-gray-100;
+}
+
+.modalNote {
+  @apply text-center text-xs text-gray-400 mb-6 px-4;
+}
+
+.btnClose {
+  @apply w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition-colors;
+}
+
+/* --- Dynamic QR Component --- */
+.qrContainer {
+  @apply flex flex-col items-center;
+}
+
+.qrBox {
+  @apply bg-white p-4 rounded-lg shadow-inner border border-gray-100 mb-4;
+}
+
+.qrPlaceholder {
+  @apply w-[200px] h-[200px] flex items-center justify-center text-gray-400;
+}
+
+.qrTimer {
+  @apply flex items-center gap-2 px-4 py-2 bg-purple-50 text-[#5C3386] rounded-full text-sm font-semibold mb-2;
+}
+
+.btnRefresh {
+  @apply flex items-center gap-2 text-xs text-gray-500 hover:text-[#5C3386] transition-colors;
+}
