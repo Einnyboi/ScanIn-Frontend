@@ -1,1 +1,155 @@
 @import "tailwindcss";
+
+html {
+  background: #f7f4ef;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.brand-panel::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: '';
+  background-image: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.16) 46%,
+    transparent 56%
+  );
+  transform: translateX(-120%);
+  animation: campus-shine 6s ease-in-out 1s infinite;
+}
+
+.brand-copy {
+  animation: rise-in 800ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.login-card {
+  animation: card-in 760ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.help-panel {
+  animation: help-in 240ms ease both;
+}
+
+.support-panel {
+  animation: support-in 260ms ease both;
+}
+
+.metric-panel {
+  animation: help-in 240ms ease both;
+}
+
+.scanner-frame {
+  position: relative;
+  overflow: hidden;
+}
+
+.scanner-frame::after {
+  position: absolute;
+  right: 16px;
+  left: 16px;
+  height: 2px;
+  content: '';
+  background: #10b981;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.9);
+  animation: scan-line 2.4s ease-in-out infinite;
+}
+
+.login-side {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), transparent 36%),
+    radial-gradient(circle at 82% 18%, rgba(125, 34, 40, 0.1), transparent 28%),
+    #f7f4ef;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateX(32px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes help-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes support-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scan-line {
+  0% {
+    top: 18px;
+  }
+  50% {
+    top: calc(100% - 18px);
+  }
+  100% {
+    top: 18px;
+  }
+}
+
+@keyframes campus-shine {
+  0%,
+  48% {
+    transform: translateX(-120%);
+  }
+  72%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+}
