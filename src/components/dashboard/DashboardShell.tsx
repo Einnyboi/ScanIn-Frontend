@@ -1,4 +1,5 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
+import { Bell, CalendarDays, Clock } from 'lucide-react'
 
 import { getRoleOption } from '../../lib/roleOptions'
 import type { LocalSession } from '../../types/auth'
@@ -7,16 +8,29 @@ import { SupportPanel } from './SupportPanel'
 type DashboardShellProps = {
   session: LocalSession
   children: ReactNode
+  notificationCount?: number
+  notificationLabel?: string
+  onNotificationClick?: () => void
   onLogout: () => void
 }
 
 export function DashboardShell({
   session,
   children,
+  notificationCount = 0,
+  notificationLabel = 'Notifikasi',
+  onNotificationClick,
   onLogout,
 }: DashboardShellProps) {
   const [isSupportOpen, setIsSupportOpen] = useState(false)
+  const [now, setNow] = useState(() => new Date())
   const role = getRoleOption(session.role)
+  const canUseSupport = session.role !== 'admin'
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-slate-900">
@@ -57,13 +71,35 @@ export function DashboardShell({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <div className="flex h-11 items-center gap-2 rounded-[8px] border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600">
+              <CalendarDays className="h-4 w-4 text-[#5c3386]" aria-hidden="true" />
+              <span className="hidden sm:inline">{formatDashboardDate(now)}</span>
+              <Clock className="h-4 w-4 text-[#7d2228]" aria-hidden="true" />
+              <span>{formatDashboardTime(now)}</span>
+            </div>
             <button
               type="button"
-              onClick={() => setIsSupportOpen(true)}
-              className="flex h-11 items-center justify-center rounded-[8px] border border-[#5c3386]/20 bg-[#5c3386]/8 px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
+              onClick={onNotificationClick}
+              className="relative flex h-11 items-center justify-center rounded-[8px] border border-slate-200 bg-white px-3 text-sm font-black text-slate-600 transition hover:border-[#5c3386]/40 hover:text-[#5c3386]"
+              aria-label={`${notificationCount} ${notificationLabel}`}
             >
-              Bantuan Admin
+              <Bell className="h-5 w-5" aria-hidden="true" />
+              <span className="ml-2 hidden sm:inline">{notificationLabel}</span>
+              {notificationCount ? (
+                <span className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#7d2228] px-1.5 text-[11px] font-black text-white">
+                  {notificationCount}
+                </span>
+              ) : null}
             </button>
+            {canUseSupport ? (
+              <button
+                type="button"
+                onClick={() => setIsSupportOpen(true)}
+                className="flex h-11 items-center justify-center rounded-[8px] border border-[#5c3386]/20 bg-[#5c3386]/8 px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
+              >
+                Bantuan Admin
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onLogout}
@@ -79,21 +115,39 @@ export function DashboardShell({
         {children}
       </main>
 
-      <button
-        type="button"
-        onClick={() => setIsSupportOpen(true)}
-        className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-[8px] bg-[#5c3386] text-xl font-black text-white shadow-2xl shadow-[#5c3386]/30 transition hover:-translate-y-1 hover:bg-[#4f2b73]"
-        aria-label="Buka bantuan admin"
-      >
-        ?
-      </button>
+      {canUseSupport ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setIsSupportOpen(true)}
+            className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-[8px] bg-[#5c3386] text-xl font-black text-white shadow-2xl shadow-[#5c3386]/30 transition hover:-translate-y-1 hover:bg-[#4f2b73]"
+            aria-label="Buka bantuan admin"
+          >
+            ?
+          </button>
 
-      <SupportPanel
-        session={session}
-        isOpen={isSupportOpen}
-        onClose={() => setIsSupportOpen(false)}
-      />
+          <SupportPanel
+            session={session}
+            isOpen={isSupportOpen}
+            onClose={() => setIsSupportOpen(false)}
+          />
+        </>
+      ) : null}
     </div>
   )
 }
 
+function formatDashboardDate(date: Date) {
+  return date.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatDashboardTime(date: Date) {
+  return date.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}

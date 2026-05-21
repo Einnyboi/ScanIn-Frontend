@@ -2,6 +2,7 @@ export type ClassStatus = 'active' | 'upcoming' | 'closed'
 
 export type CourseSchedule = {
   id: string
+  day?: string
   title: string
   time: string
   room: string

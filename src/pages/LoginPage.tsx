@@ -1,22 +1,25 @@
 import { type FormEvent, useMemo, useState } from 'react'
 
-import { AdminDashboard } from './AdminDashboard'
+import AdminDashboard from './AdminDashboard'
 import { BrandPanel } from '../components/BrandPanel'
 import { LoginForm } from '../components/LoginForm'
 import { LecturerDashboard } from './LecturerDashboard'
 import { StudentDashboard } from './StudentDashboard'
+import { ForgotPasswordPage } from './ForgotPasswordPage'
+import { LoginHelpPage } from './LoginHelpPage'
 import { clearSession, loadSession, saveSession } from '../lib/localSession'
 import { getRoleOption } from '../lib/roleOptions'
-import type { HelpPanel, LocalSession, Role } from '../types/auth'
+import type { LocalSession, Role } from '../types/auth'
+import { isUntarAccount, resolveLocalAccount } from '../utils/accounts'
+import { loginWithBackend } from '../utils/authApi'
 import { validatePassword } from '../utils/password'
 
 export function LoginPage() {
   const [selectedRole, setSelectedRole] = useState<Role>('mahasiswa')
-  const [identity, setIdentity] = useState('')
-  const [name, setName] = useState('')
+  const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [helpPanel, setHelpPanel] = useState<HelpPanel>(null)
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'help'>('login')
   const [error, setError] = useState('')
   const [session, setSession] = useState<LocalSession | null>(() => loadSession())
 
@@ -25,17 +28,24 @@ export function LoginPage() {
   const handleRoleChange = (role: Role) => {
     setSelectedRole(role)
     setError('')
-    setHelpPanel(null)
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    const trimmedIdentity = identity.trim()
-    const trimmedName = name.trim()
+    const trimmedAccount = account.trim().toLowerCase()
 
-    if (!trimmedIdentity || !trimmedName || !password.trim()) {
-      setError(`${activeRole.fieldLabel}, nama, dan password wajib diisi.`)
+    if (!trimmedAccount || !password.trim()) {
+      setError('Akun UNTAR dan password wajib diisi.')
+      return
+    }
+
+    if (!isUntarAccount(trimmedAccount, selectedRole)) {
+      setError(
+        selectedRole === 'mahasiswa'
+          ? 'Mahasiswa wajib memakai email @stu.untar.ac.id.'
+          : 'Pengajar dan admin wajib memakai email @untar.ac.id.',
+      )
       return
     }
 
@@ -46,28 +56,38 @@ export function LoginPage() {
       return
     }
 
+    const backendProfile = await loginWithBackend(trimmedAccount, password)
+
+    if (backendProfile && backendProfile.role !== selectedRole) {
+      setError(
+        `Akun ini terdaftar sebagai ${getRoleOption(backendProfile.role).label}. Pilih role yang sesuai.`,
+      )
+      return
+    }
+
+    const accountProfile =
+      backendProfile ?? resolveLocalAccount(selectedRole, trimmedAccount)
     const nextSession: LocalSession = {
       role: selectedRole,
-      identity: trimmedIdentity,
-      name: trimmedName,
+      identity: accountProfile.identity,
+      name: accountProfile.name,
+      email: accountProfile.email,
       loggedAt: new Date().toISOString(),
     }
 
     saveSession(nextSession)
     setSession(nextSession)
     setError('')
-    setHelpPanel(null)
     setPassword('')
   }
 
   const handleLogout = () => {
     clearSession()
     setSession(null)
-    setIdentity('')
-    setName('')
+    setAccount('')
     setPassword('')
     setError('')
-    setHelpPanel(null)
+    setAuthView('login')
   }
 
   if (session?.role === 'mahasiswa') {
@@ -82,6 +102,24 @@ export function LoginPage() {
     return <AdminDashboard session={session} onLogout={handleLogout} />
   }
 
+  if (authView === 'forgot') {
+    return (
+      <ForgotPasswordPage
+        initialRole={selectedRole}
+        onBack={() => setAuthView('login')}
+      />
+    )
+  }
+
+  if (authView === 'help') {
+    return (
+      <LoginHelpPage
+        initialRole={selectedRole}
+        onBack={() => setAuthView('login')}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen overflow-hidden bg-[#f7f4ef] text-slate-900">
       <main className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
@@ -92,19 +130,17 @@ export function LoginPage() {
             <LoginForm
               selectedRole={selectedRole}
               activeRole={activeRole}
-              identity={identity}
-              name={name}
+              account={account}
               password={password}
               showPassword={showPassword}
               error={error}
-              helpPanel={helpPanel}
               onSubmit={handleSubmit}
               onRoleChange={handleRoleChange}
-              onIdentityChange={setIdentity}
-              onNameChange={setName}
+              onAccountChange={setAccount}
               onPasswordChange={setPassword}
               onTogglePassword={() => setShowPassword((current) => !current)}
-              onHelpPanelChange={setHelpPanel}
+              onForgotPassword={() => setAuthView('forgot')}
+              onOpenHelp={() => setAuthView('help')}
             />
           </div>
         </section>

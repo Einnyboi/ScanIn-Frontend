@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { CourseSchedule, ScanRecord } from '../types/attendance'
+import type { CourseSchedule, QrPayload, ScanRecord } from '../types/attendance'
+import {
+  isQrExpired,
+  loadActiveQrPayload,
+  saveActiveQrPayload,
+} from '../utils/qr'
 import {
   getAutoCloseSecondsLeft,
   getSessionAutoCloseAt,
@@ -12,7 +17,7 @@ type LecturerSessionPageProps = {
   scanRecords: ScanRecord[]
   onBack: () => void
   onCloseSession: () => void
-  onLocalScan: () => void
+  onLocalScan: () => LocalScanResult
   onManualMark: (
     student: ManualStudent,
     status: 'Terverifikasi' | 'Terlambat' | 'Tidak Hadir',
@@ -25,9 +30,34 @@ type ManualStudent = {
   defaultTime: string
 }
 
+type LocalScanResult = {
+  success: boolean
+  title: string
+  message: string
+  studentName?: string
+  studentId?: string
+}
+
+type BarcodeDetectorResult = {
+  rawValue: string
+}
+
+type BarcodeDetectorInstance = {
+  detect: (source: CanvasImageSource) => Promise<BarcodeDetectorResult[]>
+}
+
+type BarcodeDetectorConstructor = new (options?: {
+  formats?: string[]
+}) => BarcodeDetectorInstance
+
+type BrowserWindow = typeof window & {
+  BarcodeDetector?: BarcodeDetectorConstructor
+  webkitAudioContext?: typeof AudioContext
+}
+
 const manualStudents: ManualStudent[] = [
   { studentId: '535240187', studentName: "Naisya Yuen Ra'af", defaultTime: '08:02' },
-  { studentId: '535240156', studentName: 'Ahmad Rizki', defaultTime: '08:03' },
+  { studentId: '535240156', studentName: 'Cathrine Sandrina', defaultTime: '08:03' },
   { studentId: '535240145', studentName: 'Siti Nurhaliza', defaultTime: '08:01' },
   { studentId: '535240132', studentName: 'Budi Santoso', defaultTime: '08:04' },
   { studentId: '535240178', studentName: 'Dewi Lestari', defaultTime: '08:05' },
@@ -49,6 +79,11 @@ export function LecturerSessionPage({
 }: LecturerSessionPageProps) {
   const [now, setNow] = useState(() => new Date())
   const [mode, setMode] = useState<'qr' | 'manual'>('qr')
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+  const [cameraMessage, setCameraMessage] = useState('')
+  const [scanToast, setScanToast] = useState<LocalScanResult | null>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const lastScannedTokenRef = useRef('')
   const secondsLeft = getAutoCloseSecondsLeft(course, now)
   const autoCloseAt = getSessionAutoCloseAt(course, now)
 
@@ -62,6 +97,19 @@ export function LecturerSessionPage({
       onCloseSession()
     }
   }, [onCloseSession, secondsLeft])
+
+  useEffect(() => {
+    if (videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream
+    }
+  }, [cameraStream])
+
+  useEffect(
+    () => () => {
+      cameraStream?.getTracks().forEach((track) => track.stop())
+    },
+    [cameraStream],
+  )
 
   const latestRecordByStudent = useMemo(() => {
     const latestRecords = new Map<string, ScanRecord>()
@@ -86,6 +134,159 @@ export function LecturerSessionPage({
   const absentCount = manualStudents.length - presentCount - lateCount
   const attendedCount = presentCount + lateCount
   const progress = Math.round((attendedCount / manualStudents.length) * 100)
+
+  const playScanFeedback = useCallback(() => {
+    const browserWindow = window as BrowserWindow
+    const AudioContextConstructor =
+      window.AudioContext ?? browserWindow.webkitAudioContext
+
+    if (!AudioContextConstructor) return
+
+    const audioContext = new AudioContextConstructor()
+    const oscillator = audioContext.createOscillator()
+    const gain = audioContext.createGain()
+
+    oscillator.type = 'sine'
+    oscillator.frequency.value = 880
+    gain.gain.setValueAtTime(0.001, audioContext.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.22, audioContext.currentTime + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.16)
+    oscillator.connect(gain)
+    gain.connect(audioContext.destination)
+    oscillator.start()
+    oscillator.stop(audioContext.currentTime + 0.18)
+  }, [])
+
+  const readPayloadFromCamera = useCallback(async () => {
+    const browserWindow = window as BrowserWindow
+    const video = videoRef.current
+
+    if (!video || !browserWindow.BarcodeDetector) {
+      return null
+    }
+
+    try {
+      const detector = new browserWindow.BarcodeDetector({
+        formats: ['qr_code'],
+      })
+      const [result] = await detector.detect(video)
+
+      if (!result?.rawValue) {
+        return null
+      }
+
+      const parsedPayload = JSON.parse(result.rawValue) as Partial<QrPayload> & {
+        type?: string
+      }
+
+      if (
+        parsedPayload.type === 'SCANIN_ATTENDANCE' &&
+        parsedPayload.token &&
+        parsedPayload.courseId &&
+        parsedPayload.studentId &&
+        parsedPayload.studentName &&
+        parsedPayload.expiresAt
+      ) {
+        const payload = parsedPayload as QrPayload
+        saveActiveQrPayload(payload)
+        return payload
+      }
+    } catch {
+      return null
+    }
+
+    return null
+  }, [])
+
+  const commitScanResult = useCallback(
+    (result: LocalScanResult) => {
+      setScanToast(result)
+      setCameraMessage(result.message)
+
+      if (result.success && result.title !== 'Presensi sudah tercatat') {
+        playScanFeedback()
+      }
+    },
+    [playScanFeedback],
+  )
+
+  const attemptCameraScan = useCallback(
+    async (forceMessage = false) => {
+      const payload = (await readPayloadFromCamera()) ?? loadActiveQrPayload()
+
+      if (!payload) {
+        if (forceMessage) {
+          setCameraMessage('Kamera aktif. Arahkan QR mahasiswa ke area scanner.')
+        }
+        return
+      }
+
+      if (payload.courseId !== course.id) {
+        if (forceMessage) {
+          setCameraMessage('QR terbaca, tetapi bukan untuk sesi kelas ini.')
+        }
+        return
+      }
+
+      if (payload.token === lastScannedTokenRef.current) {
+        if (forceMessage) {
+          setCameraMessage('QR ini sudah terbaca. Tunggu token mahasiswa berubah.')
+        }
+        return
+      }
+
+      if (isQrExpired(payload)) {
+        if (forceMessage) {
+          setCameraMessage('QR terbaca tetapi sudah kedaluwarsa.')
+        }
+        return
+      }
+
+      lastScannedTokenRef.current = payload.token
+      commitScanResult(onLocalScan())
+    },
+    [commitScanResult, course.id, onLocalScan, readPayloadFromCamera],
+  )
+
+  useEffect(() => {
+    if (!cameraStream || mode !== 'qr') {
+      return
+    }
+
+    const initialScan = window.setTimeout(() => {
+      void attemptCameraScan(true)
+    }, 150)
+    const timer = window.setInterval(() => {
+      void attemptCameraScan()
+    }, 1_000)
+
+    return () => {
+      window.clearTimeout(initialScan)
+      window.clearInterval(timer)
+    }
+  }, [attemptCameraScan, cameraStream, mode])
+
+  const handleStartCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraMessage('Browser belum mendukung akses kamera.')
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false,
+      })
+      setCameraStream(stream)
+      setCameraMessage('Kamera aktif. Scanner akan membaca QR secara otomatis.')
+    } catch {
+      setCameraMessage('Izin kamera ditolak atau kamera tidak tersedia.')
+    }
+  }
+
+  const handleCameraScan = () => {
+    void attemptCameraScan(true)
+  }
 
   if (mode === 'manual') {
     return (
@@ -236,29 +437,62 @@ export function LecturerSessionPage({
             Scan QR Mahasiswa
           </h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
-            Scanner langsung aktif setelah sesi dibuka. Untuk prototipe lokal,
-            tombol scan membaca QR aktif dari localStorage.
+            Aktifkan kamera untuk scan QR. Pada prototipe lokal ini, hasil scan
+            membaca QR aktif yang dibuat mahasiswa di browser yang sama.
           </p>
 
-          <div className="mx-auto mt-7 max-w-md rounded-[8px] bg-slate-100 p-6">
-            <div className="scanner-frame flex aspect-square items-center justify-center rounded-[8px] bg-slate-950 text-white shadow-inner">
-              <div>
-                <div className="mx-auto grid h-40 w-40 grid-cols-2 gap-7">
-                  <ScanCorner />
-                  <ScanCorner />
-                  <ScanCorner />
-                  <ScanCorner />
+          <div className="mx-auto mt-7 max-w-md rounded-[8px] bg-slate-100 p-4">
+            <div className="scanner-frame relative aspect-square overflow-hidden rounded-[8px] bg-slate-950 text-white shadow-inner">
+              {cameraStream ? (
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center px-8 text-center">
+                  <div>
+                    <div className="mx-auto grid h-40 w-40 grid-cols-2 gap-7">
+                      <ScanCorner />
+                      <ScanCorner />
+                      <ScanCorner />
+                      <ScanCorner />
+                    </div>
+                    <p className="mt-6 text-sm font-bold text-white/70">
+                      Kamera belum aktif
+                    </p>
+                  </div>
                 </div>
-                <p className="mt-6 text-sm font-bold text-white/70">
-                  Arahkan kamera ke QR mahasiswa
-                </p>
-              </div>
+              )}
+              <div className="pointer-events-none absolute inset-8 rounded-[8px] border-2 border-white/70" />
             </div>
           </div>
 
           <p className="mx-auto mt-5 max-w-2xl rounded-[8px] bg-slate-50 px-4 py-3 text-sm font-bold leading-6 text-slate-600">
             {scannerMessage}
           </p>
+          {cameraMessage ? (
+            <p className="mx-auto mt-3 max-w-2xl rounded-[8px] bg-[#5c3386]/8 px-4 py-3 text-sm font-bold leading-6 text-[#5c3386]">
+              {cameraMessage}
+            </p>
+          ) : null}
+          {scanToast ? (
+            <div
+              className={`scan-success-toast mx-auto mt-3 max-w-2xl rounded-[8px] border px-4 py-3 text-left ${
+                scanToast.success
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-[#7d2228]/20 bg-[#7d2228]/8 text-[#7d2228]'
+              }`}
+              role="status"
+            >
+              <p className="text-sm font-black">{scanToast.title}</p>
+              <p className="mt-1 text-sm font-semibold leading-6">
+                {scanToast.message}
+              </p>
+            </div>
+          ) : null}
 
           <div className="mt-7 text-left">
             <div className="mb-2 flex items-center justify-between gap-3 text-sm font-black text-slate-700">
@@ -275,13 +509,20 @@ export function LecturerSessionPage({
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-3">
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
             <button
               type="button"
-              onClick={onLocalScan}
+              onClick={handleStartCamera}
+              className="flex h-12 items-center justify-center rounded-[8px] border border-[#5c3386] bg-white px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
+            >
+              Aktifkan Kamera
+            </button>
+            <button
+              type="button"
+              onClick={handleCameraScan}
               className="flex h-12 items-center justify-center rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
             >
-              Scan QR Lokal
+              Scan Ulang Sekarang
             </button>
             <button
               type="button"

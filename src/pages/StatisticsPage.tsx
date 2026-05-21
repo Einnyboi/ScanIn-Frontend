@@ -15,6 +15,7 @@ type StatisticsPageProps = {
 
 type WeeklyAttendance = {
   label: string
+  dateRange: string
   hadir: number
   terlambat: number
   alpha: number
@@ -22,6 +23,7 @@ type WeeklyAttendance = {
 
 type LinePoint = {
   label: string
+  detail: string
   value: number
 }
 
@@ -38,42 +40,42 @@ const axis = '#687280'
 const grid = '#d7dbe0'
 
 const weeklyAttendance: WeeklyAttendance[] = [
-  { label: 'Week 1', hadir: 5, terlambat: 0, alpha: 0 },
-  { label: 'Week 2', hadir: 4, terlambat: 1, alpha: 0 },
-  { label: 'Week 3', hadir: 5, terlambat: 0, alpha: 0 },
-  { label: 'Week 4', hadir: 4, terlambat: 0, alpha: 0 },
-  { label: 'Week 5', hadir: 5, terlambat: 0, alpha: 0 },
-  { label: 'Week 6', hadir: 3, terlambat: 2, alpha: 0 },
-  { label: 'Week 7', hadir: 5, terlambat: 0, alpha: 0 },
-  { label: 'Week 8', hadir: 4, terlambat: 1, alpha: 1 },
+  { label: 'Week 1', dateRange: '1-7 Apr 2026', hadir: 5, terlambat: 0, alpha: 0 },
+  { label: 'Week 2', dateRange: '8-14 Apr 2026', hadir: 4, terlambat: 1, alpha: 0 },
+  { label: 'Week 3', dateRange: '15-21 Apr 2026', hadir: 5, terlambat: 0, alpha: 0 },
+  { label: 'Week 4', dateRange: '22-28 Apr 2026', hadir: 4, terlambat: 0, alpha: 0 },
+  { label: 'Week 5', dateRange: '29 Apr-5 Mei 2026', hadir: 5, terlambat: 0, alpha: 0 },
+  { label: 'Week 6', dateRange: '6-12 Mei 2026', hadir: 3, terlambat: 2, alpha: 0 },
+  { label: 'Week 7', dateRange: '13-19 Mei 2026', hadir: 5, terlambat: 0, alpha: 0 },
+  { label: 'Week 8', dateRange: '20-26 Mei 2026', hadir: 4, terlambat: 1, alpha: 1 },
 ]
 
 const monthlyAttendance: LinePoint[] = [
-  { label: 'Jan', value: 90 },
-  { label: 'Feb', value: 85 },
-  { label: 'Mar', value: 92 },
-  { label: 'Apr', value: 88 },
-  { label: 'May', value: 87 },
+  { label: 'Jan', detail: '1-31 Januari 2026', value: 90 },
+  { label: 'Feb', detail: '1-28 Februari 2026', value: 85 },
+  { label: 'Mar', detail: '1-31 Maret 2026', value: 92 },
+  { label: 'Apr', detail: '1-30 April 2026', value: 88 },
+  { label: 'May', detail: '1-31 Mei 2026', value: 87 },
 ]
 
 const weeklyLate: LinePoint[] = [
-  { label: 'Week 1', value: 0 },
-  { label: 'Week 2', value: 1 },
-  { label: 'Week 3', value: 0 },
-  { label: 'Week 4', value: 0 },
-  { label: 'Week 5', value: 0 },
-  { label: 'Week 6', value: 2 },
-  { label: 'Week 7', value: 0 },
-  { label: 'Week 8', value: 1 },
+  { label: 'Week 1', detail: '1-7 Apr 2026', value: 0 },
+  { label: 'Week 2', detail: '8-14 Apr 2026', value: 1 },
+  { label: 'Week 3', detail: '15-21 Apr 2026', value: 0 },
+  { label: 'Week 4', detail: '22-28 Apr 2026', value: 0 },
+  { label: 'Week 5', detail: '29 Apr-5 Mei 2026', value: 0 },
+  { label: 'Week 6', detail: '6-12 Mei 2026', value: 2 },
+  { label: 'Week 7', detail: '13-19 Mei 2026', value: 0 },
+  { label: 'Week 8', detail: '20-26 Mei 2026', value: 1 },
 ]
 
 const ticketTrend: LinePoint[] = [
-  { label: 'Week 1', value: 0 },
-  { label: 'Week 2', value: 1 },
-  { label: 'Week 3', value: 1 },
-  { label: 'Week 4', value: 0 },
-  { label: 'Week 5', value: 1 },
-  { label: 'Week 6', value: 0 },
+  { label: 'Week 1', detail: '1-7 Apr 2026', value: 0 },
+  { label: 'Week 2', detail: '8-14 Apr 2026', value: 1 },
+  { label: 'Week 3', detail: '15-21 Apr 2026', value: 1 },
+  { label: 'Week 4', detail: '22-28 Apr 2026', value: 0 },
+  { label: 'Week 5', detail: '29 Apr-5 Mei 2026', value: 1 },
+  { label: 'Week 6', detail: '6-12 Mei 2026', value: 0 },
 ]
 
 const lateDetails = [
@@ -399,21 +401,24 @@ function WeeklyBarChart({ data }: { data: WeeklyAttendance[] }) {
             <g
               transform={`translate(${Math.min(
                 selectedX + 18,
-                chartLeft + chartWidth - 130,
+                chartLeft + chartWidth - 150,
               )} ${chartTop + 16})`}
             >
-              <rect fill="white" height="112" stroke="#d1d5db" width="124" />
+              <rect fill="white" height="124" stroke="#d1d5db" width="142" />
               <text fill="#020617" fontSize="15" fontWeight="900" x="14" y="26">
                 {selectedItem.label}
               </text>
-              <text fill={purple} fontSize="14" fontWeight="800" x="14" y="54">
+              <text fill={axis} fontSize="11" fontWeight="800" x="14" y="44">
+                {selectedItem.dateRange}
+              </text>
+              <text fill={purple} fontSize="14" fontWeight="800" x="14" y="64">
                 Hadir: {selectedItem.hadir}
               </text>
-              <text fill={yellow} fontSize="14" fontWeight="800" x="14" y="80">
+              <text fill={yellow} fontSize="14" fontWeight="800" x="14" y="88">
                 Terlambat: {selectedItem.terlambat}
               </text>
-              <text fill={red} fontSize="14" fontWeight="800" x="14" y="106">
-                Alpha: {selectedItem.alpha}
+              <text fill={red} fontSize="14" fontWeight="800" x="14" y="112">
+                Tidak hadir: {selectedItem.alpha}
               </text>
             </g>
           </>
@@ -564,17 +569,20 @@ function LineChart({
             pointerEvents="none"
             transform={`translate(${Math.min(
               selectedPoint.x + 10,
-              chartLeft + chartWidth - 160,
-            )} ${Math.min(selectedPoint.y + 28, chartTop + chartHeight - 72)})`}
+              chartLeft + chartWidth - 180,
+            )} ${Math.min(selectedPoint.y + 28, chartTop + chartHeight - 88)})`}
           >
-            <rect fill="white" height="72" stroke="#d1d5db" width="150" />
+            <rect fill="white" height="88" stroke="#d1d5db" width="170" />
             <text fill="#020617" fontSize="14" fontWeight="900" x="12" y="24">
               {selectedPoint.label}
             </text>
-            <text fill={color} fontSize="13" fontWeight="800" x="12" y="48">
+            <text fill={axis} fontSize="11" fontWeight="800" x="12" y="42">
+              {selectedPoint.detail}
+            </text>
+            <text fill={color} fontSize="13" fontWeight="800" x="12" y="62">
               {label}
             </text>
-            <text fill={color} fontSize="14" fontWeight="900" x="12" y="64">
+            <text fill={color} fontSize="14" fontWeight="900" x="12" y="78">
               {selectedPoint.value}
               {valueSuffix}
             </text>

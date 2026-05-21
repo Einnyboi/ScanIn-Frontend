@@ -1,48 +1,48 @@
 import type { FormEvent } from 'react'
 
 import { roleOptions, type RoleOption } from '../lib/roleOptions'
-import type { HelpPanel, Role } from '../types/auth'
+import type { Role } from '../types/auth'
+import { getAccountPlaceholder } from '../utils/accounts'
 import { getPasswordRules } from '../utils/password'
 
 type LoginFormProps = {
   selectedRole: Role
   activeRole: RoleOption
-  identity: string
-  name: string
+  account: string
   password: string
   showPassword: boolean
   error: string
-  helpPanel: HelpPanel
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onRoleChange: (role: Role) => void
-  onIdentityChange: (value: string) => void
-  onNameChange: (value: string) => void
+  onAccountChange: (value: string) => void
   onPasswordChange: (value: string) => void
   onTogglePassword: () => void
-  onHelpPanelChange: (panel: HelpPanel) => void
+  onForgotPassword: () => void
+  onOpenHelp: () => void
 }
 
 export function LoginForm({
   selectedRole,
   activeRole,
-  identity,
-  name,
+  account,
   password,
   showPassword,
   error,
-  helpPanel,
   onSubmit,
   onRoleChange,
-  onIdentityChange,
-  onNameChange,
+  onAccountChange,
   onPasswordChange,
   onTogglePassword,
-  onHelpPanelChange,
+  onForgotPassword,
+  onOpenHelp,
 }: LoginFormProps) {
-  const toggleHelpPanel = (panel: Exclude<HelpPanel, null>) => {
-    onHelpPanelChange(helpPanel === panel ? null : panel)
-  }
   const passwordRules = getPasswordRules(password)
+  const submitLabel =
+    selectedRole === 'admin'
+      ? 'Masuk ke Panel Administrasi'
+      : selectedRole === 'pengajar'
+        ? 'Masuk ke Portal Pengajar'
+        : 'Masuk ke Portal Mahasiswa'
 
   return (
     <>
@@ -54,8 +54,7 @@ export function LoginForm({
           Masuk ke akun kamu
         </h2>
         <p className="mt-3 text-sm leading-6 text-slate-500">
-          Pilih peran sesuai akun supaya form dan aksesnya langsung
-          menyesuaikan.
+          Pilih peran sesuai akun supaya akses dashboard langsung menyesuaikan.
         </p>
       </div>
 
@@ -90,38 +89,24 @@ export function LoginForm({
       <form className="mt-8 space-y-5" onSubmit={onSubmit}>
         <div>
           <label
-            htmlFor="identity"
+            htmlFor="account"
             className="mb-2 block text-sm font-bold text-slate-700"
           >
-            {activeRole.fieldLabel}
+            Email UNTAR
           </label>
           <input
-            id="identity"
-            name="identity"
-            type="text"
-            value={identity}
-            onChange={(event) => onIdentityChange(event.target.value)}
-            placeholder={activeRole.placeholder}
+            id="account"
+            name="account"
+            type="email"
+            value={account}
+            onChange={(event) => onAccountChange(event.target.value)}
+            placeholder={getAccountPlaceholder(activeRole.id)}
             className="h-14 w-full rounded-[8px] border border-slate-200 bg-white px-4 text-base font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
           />
-        </div>
-
-        <div>
-          <label
-            htmlFor="name"
-            className="mb-2 block text-sm font-bold text-slate-700"
-          >
-            {activeRole.nameLabel}
-          </label>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            value={name}
-            onChange={(event) => onNameChange(event.target.value)}
-            placeholder={activeRole.namePlaceholder}
-            className="h-14 w-full rounded-[8px] border border-slate-200 bg-white px-4 text-base font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
-          />
+          <p className="mt-2 text-xs font-semibold text-slate-500">
+            Mahasiswa memakai domain @stu.untar.ac.id. Pengajar dan admin
+            memakai @untar.ac.id.
+          </p>
         </div>
 
         <div>
@@ -179,7 +164,8 @@ export function LoginForm({
                     : 'bg-slate-100 text-slate-500'
                 }`}
               >
-                {rule.isValid ? 'OK ' : ''}{rule.label}
+                {rule.isValid ? 'OK ' : ''}
+                {rule.label}
               </div>
             ))}
           </div>
@@ -201,7 +187,7 @@ export function LoginForm({
           </label>
           <button
             type="button"
-            onClick={() => toggleHelpPanel('forgot-password')}
+            onClick={onForgotPassword}
             className="text-sm font-bold text-[#7d2228] transition hover:text-[#5c3386]"
           >
             Lupa password?
@@ -212,145 +198,20 @@ export function LoginForm({
           type="submit"
           className="mt-2 flex h-14 w-full items-center justify-center rounded-[8px] bg-[#5c3386] px-5 text-base font-black text-white shadow-xl shadow-[#5c3386]/25 transition duration-300 hover:-translate-y-0.5 hover:bg-[#4f2b73] focus:outline-none focus:ring-4 focus:ring-[#5c3386]/20"
         >
-          Masuk sebagai {activeRole.label}
+          {submitLabel}
         </button>
       </form>
-
-      {helpPanel ? (
-        <HelpPanelContent
-          panel={helpPanel}
-          activeRole={activeRole}
-          identity={identity}
-          name={name}
-          onClose={() => onHelpPanelChange(null)}
-        />
-      ) : null}
 
       <p className="mt-8 text-center text-sm font-semibold text-slate-500">
         Butuh bantuan akses?{' '}
         <button
           type="button"
-          onClick={() => toggleHelpPanel('contact-admin')}
+          onClick={onOpenHelp}
           className="font-bold text-[#5c3386] transition hover:text-[#7d2228]"
         >
           Hubungi Admin Fakultas
         </button>
       </p>
     </>
-  )
-}
-
-type HelpPanelContentProps = {
-  panel: Exclude<HelpPanel, null>
-  activeRole: RoleOption
-  identity: string
-  name: string
-  onClose: () => void
-}
-
-function HelpPanelContent({
-  panel,
-  activeRole,
-  identity,
-  name,
-  onClose,
-}: HelpPanelContentProps) {
-  const cleanIdentity = identity.trim()
-  const cleanName = name.trim()
-
-  return (
-    <div className="help-panel mt-5 rounded-[8px] border border-[#5c3386]/12 bg-[#5c3386]/5 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#7d2228]">
-            Bantuan Akses
-          </p>
-          <h3 className="mt-1 text-lg font-black text-[#5c3386]">
-            {panel === 'forgot-password'
-              ? 'Reset password'
-              : 'Hubungi Admin Fakultas'}
-          </h3>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-[8px] text-slate-500 transition hover:bg-white hover:text-[#7d2228]"
-          aria-label="Tutup bantuan"
-        >
-          x
-        </button>
-      </div>
-
-      {panel === 'forgot-password' ? (
-        <div className="mt-4 space-y-4">
-          <p className="text-sm leading-6 text-slate-600">
-            Untuk sementara, permintaan reset belum dikirim ke backend. Isi{' '}
-            {activeRole.fieldLabel} dan nama di form, lalu gunakan data ini saat
-            menghubungi admin.
-          </p>
-          <div className="grid gap-3 rounded-[8px] bg-white p-4 text-sm sm:grid-cols-2">
-            <HelpField label={activeRole.fieldLabel} value={cleanIdentity} />
-            <HelpField label="Nama" value={cleanName} />
-          </div>
-          <p className="rounded-[8px] bg-white px-4 py-3 text-sm font-semibold leading-6 text-slate-600">
-            Format pesan: Halo Admin Fakultas FTI, saya {cleanName || '[nama]'}{' '}
-            ({activeRole.label}) dengan {activeRole.fieldLabel}{' '}
-            {cleanIdentity || '[nomor]'} ingin meminta reset password akun
-            ScanIn.
-          </p>
-        </div>
-      ) : (
-        <div className="mt-4 space-y-4">
-          <p className="text-sm leading-6 text-slate-600">
-            Bagian ini disiapkan untuk bantuan manual sebelum fitur backend
-            aktif. Admin bisa verifikasi dari role, identitas, dan nama
-            pengguna.
-          </p>
-          <div className="space-y-3 rounded-[8px] bg-white p-4 text-sm">
-            <ContactRow label="Tujuan" value="Admin Fakultas FTI" />
-            <ContactRow
-              label="Siapkan"
-              value={`${activeRole.fieldLabel}, nama lengkap, dan bukti akun`}
-            />
-            <ContactRow label="Status" value="Kontak resmi menyusul" highlight />
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-type HelpFieldProps = {
-  label: string
-  value: string
-}
-
-function HelpField({ label, value }: HelpFieldProps) {
-  return (
-    <div>
-      <p className="font-bold text-slate-400">{label}</p>
-      <p className="mt-1 font-black text-slate-800">{value || 'Belum diisi'}</p>
-    </div>
-  )
-}
-
-type ContactRowProps = {
-  label: string
-  value: string
-  highlight?: boolean
-}
-
-function ContactRow({ label, value, highlight = false }: ContactRowProps) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="font-bold text-slate-400">{label}</span>
-      <span
-        className={`text-right font-black ${
-          highlight ? 'text-[#7d2228]' : 'text-slate-800'
-        }`}
-      >
-        {value}
-      </span>
-    </div>
   )
 }

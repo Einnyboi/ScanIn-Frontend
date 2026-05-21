@@ -3,11 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { DashboardShell } from '../components/dashboard/DashboardShell'
 import { QrCodeCard } from '../components/dashboard/QrCodeCard'
 import { StatCard } from '../components/dashboard/StatCard'
-import {
-  attendanceHistory,
-  correctionTickets,
-  studentSchedules,
-} from '../data/mockAttendance'
+import { attendanceHistory, correctionTickets } from '../data/mockAttendance'
 import {
   type StatisticsMode,
   StatisticsPage,
@@ -27,6 +23,11 @@ import {
   type RuntimeStatus,
 } from '../utils/schedule'
 import {
+  fetchSchedulesFromBackend,
+  loadSchedules,
+  scheduleChangedEvent,
+} from '../utils/schedules'
+import {
   loadCorrectionTickets,
   saveCorrectionTicket,
 } from '../utils/tickets'
@@ -45,11 +46,14 @@ type StudentMetric =
 
 export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   const [now, setNow] = useState(() => new Date())
-  const activeCourse = studentSchedules.find((course) =>
+  const [schedules, setSchedules] = useState<CourseSchedule[]>(() =>
+    loadSchedules(),
+  )
+  const activeCourse = schedules.find((course) =>
     isCourseActiveNow(course, now),
   )
   const [selectedCourse, setSelectedCourse] = useState<CourseSchedule>(
-    activeCourse ?? studentSchedules[0],
+    activeCourse ?? schedules[0],
   )
   const [payload, setPayload] = useState<QrPayload | null>(null)
   const [secondsLeft, setSecondsLeft] = useState(15)
@@ -73,6 +77,33 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000)
     return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const applySchedules = (nextSchedules: CourseSchedule[]) => {
+      setSchedules(nextSchedules)
+      setSelectedCourse((currentCourse) => {
+        const matchingCourse = nextSchedules.find(
+          (course) => course.id === currentCourse.id,
+        )
+
+        return matchingCourse ?? nextSchedules[0] ?? currentCourse
+      })
+    }
+    const reloadSchedules = () => applySchedules(loadSchedules())
+
+    void fetchSchedulesFromBackend().then((backendSchedules) => {
+      if (backendSchedules) {
+        applySchedules(backendSchedules)
+      }
+    })
+
+    window.addEventListener('storage', reloadSchedules)
+    window.addEventListener(scheduleChangedEvent, reloadSchedules)
+    return () => {
+      window.removeEventListener('storage', reloadSchedules)
+      window.removeEventListener(scheduleChangedEvent, reloadSchedules)
+    }
   }, [])
 
   useEffect(() => {
@@ -165,7 +196,13 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   }
 
   return (
-    <DashboardShell session={session} onLogout={onLogout}>
+    <DashboardShell
+      notificationCount={unreadNotificationCount}
+      notificationLabel="Notifikasi"
+      onLogout={onLogout}
+      onNotificationClick={handleMarkNotificationsRead}
+      session={session}
+    >
       <div className="space-y-6">
         {notifications.length ? (
           <section className="rounded-[8px] border border-[#5c3386]/15 bg-white p-5 shadow-lg shadow-slate-900/6">
@@ -252,7 +289,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
             </div>
 
             <div className="mt-5 space-y-3">
-              {studentSchedules.map((course) => {
+              {schedules.map((course) => {
                 const status = getRuntimeStatus(course, now)
                 return (
                   <button
@@ -292,6 +329,11 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                   </button>
                 )
               })}
+              {!schedules.length ? (
+                <p className="rounded-[8px] bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
+                  Belum ada jadwal dari admin.
+                </p>
+              ) : null}
             </div>
           </div>
 

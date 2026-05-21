@@ -19,13 +19,35 @@ export const loadStudentNotifications = (studentId: string) => {
 export const saveTicketNotification = (
   ticket: CorrectionTicket,
   action: 'Disetujui' | 'Ditolak',
+  actor = 'pengajar',
 ) => {
   const notifications = loadAllNotifications()
   const nextNotification: StudentNotification = {
     id: `notification-${ticket.id}-${Date.now()}`,
     studentId: ticket.studentId,
     title: `Tiket ${action.toLowerCase()}`,
-    message: `Permohonan koreksi ${ticket.courseTitle} pada ${ticket.date} ${action.toLowerCase()} oleh pengajar.`,
+    message: `Permohonan koreksi ${ticket.courseTitle} pada ${ticket.date} ${action.toLowerCase()} oleh ${actor}.`,
+    createdAt: new Date().toISOString(),
+    isRead: false,
+  }
+
+  window.localStorage.setItem(
+    notificationKey,
+    JSON.stringify([nextNotification, ...notifications]),
+  )
+}
+
+export const saveAttendanceNotification = (
+  studentId: string,
+  courseTitle: string,
+  status: 'Hadir' | 'Terlambat' | 'Tidak Hadir',
+) => {
+  const notifications = loadAllNotifications()
+  const nextNotification: StudentNotification = {
+    id: `notification-attendance-${studentId}-${Date.now()}`,
+    studentId,
+    title: `Presensi ${status.toLowerCase()}`,
+    message: `Presensi ${courseTitle} berhasil tercatat sebagai ${status.toLowerCase()}.`,
     createdAt: new Date().toISOString(),
     isRead: false,
   }
@@ -57,4 +79,3 @@ const loadAllNotifications = (): StudentNotification[] => {
     return []
   }
 }
-

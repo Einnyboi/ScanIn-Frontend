@@ -1,4 +1,5 @@
-import { generateQrMatrix } from '../../utils/qr'
+import { QRCodeSVG } from 'qrcode.react'
+
 import type { QrPayload } from '../../types/attendance'
 
 type QrCodeCardProps = {
@@ -7,26 +8,33 @@ type QrCodeCardProps = {
 }
 
 export function QrCodeCard({ payload, secondsLeft }: QrCodeCardProps) {
-  const matrix = generateQrMatrix(payload.token)
+  const qrValue = JSON.stringify({
+    type: 'SCANIN_ATTENDANCE',
+    token: payload.token,
+    courseId: payload.courseId,
+    courseTitle: payload.courseTitle,
+    room: payload.room,
+    studentId: payload.studentId,
+    studentName: payload.studentName,
+    issuedAt: payload.issuedAt,
+    expiresAt: payload.expiresAt,
+  })
   const progress = Math.max(0, Math.min(100, (secondsLeft / 15) * 100))
 
   return (
     <div className="rounded-[8px] border border-[#5c3386]/12 bg-white p-5 shadow-xl shadow-slate-900/8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
-        <div className="mx-auto rounded-[8px] border border-slate-200 bg-white p-4 shadow-inner">
-          <div
-            className="grid h-64 w-64 gap-[2px]"
-            style={{ gridTemplateColumns: `repeat(${matrix.length}, 1fr)` }}
-            aria-label="QR presensi dinamis"
-          >
-            {matrix.flatMap((row, rowIndex) =>
-              row.map((cell, colIndex) => (
-                <span
-                  key={`${rowIndex}-${colIndex}`}
-                  className={cell ? 'rounded-[1px] bg-slate-950' : 'bg-white'}
-                />
-              )),
-            )}
+        <div className="mx-auto rounded-[8px] border border-slate-200 bg-slate-50 p-3 shadow-inner">
+          <div className="rounded-[8px] bg-white p-4 shadow-lg shadow-slate-900/10">
+            <QRCodeSVG
+              value={qrValue}
+              size={244}
+              level="M"
+              marginSize={2}
+              fgColor="#5c3386"
+              bgColor="#ffffff"
+              aria-label="QR presensi dinamis"
+            />
           </div>
         </div>
 
@@ -62,6 +70,9 @@ export function QrCodeCard({ payload, secondsLeft }: QrCodeCardProps) {
             QR ini hanya valid untuk akun {payload.studentName}. Jangan
             screenshot atau bagikan QR karena token akan kedaluwarsa.
           </div>
+          <p className="mt-3 break-all rounded-[8px] bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
+            Token: {payload.token}
+          </p>
         </div>
       </div>
     </div>
