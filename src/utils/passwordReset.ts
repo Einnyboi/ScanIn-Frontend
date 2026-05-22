@@ -2,6 +2,7 @@ import type { Role } from '../types/auth'
 import { getResetEmailForIdentity } from './accounts'
 import { apiRequest } from './api'
 
+export type EmailStatus = 'SENT' | 'SMTP_NOT_CONFIGURED' | 'FAILED'
 export type PasswordResetStatus = 'Baru' | 'Dikirim'
 
 export type PasswordResetRequest = {
@@ -13,6 +14,7 @@ export type PasswordResetRequest = {
   status: PasswordResetStatus
   createdAt: string
   sentAt?: string
+  emailStatus?: EmailStatus
 }
 
 export const passwordResetChangedEvent = 'scanin-password-resets-changed'
@@ -96,22 +98,47 @@ export const fetchPasswordResetRequestsFromBackend = async () => {
   }
 }
 
-export const markPasswordResetAsSent = (id: string) => {
-  const nextRequests = loadPasswordResetRequests().map((request) =>
+export const markPasswordResetAsSent = async (id: string) => {
+  const sentAt = new Date().toISOString()
+  const optimisticRequests = loadPasswordResetRequests().map((request) =>
     request.id === id
       ? {
           ...request,
           status: 'Dikirim' as const,
-          sentAt: new Date().toISOString(),
+          sentAt,
         }
       : request,
   )
 
-  savePasswordResetRequests(nextRequests)
+  savePasswordResetRequests(optimisticRequests, false)
 
-  void apiRequest<PasswordResetRequest>(`/password-resets/${id}/send`, {
-    method: 'PATCH',
-  }).catch(() => undefined)
+  try {
+    const backendRequest = await apiRequest<PasswordResetRequest>(
+      `/password-resets/${id}/send`,
+      {
+        method: 'PATCH',
+      },
+    )
 
-  return nextRequests
+    const syncedRequests = optimisticRequests.map((request) =>
+      request.id === id ? { ...request, ...backendRequest } : request,
+    )
+
+    savePasswordResetRequests(syncedRequests, false)
+    return syncedRequests
+  } catch {
+    const failedRequests = optimisticRequests.map((request) =>
+      request.id === id
+        ? {
+            ...request,
+            status: 'Baru' as const,
+            emailStatus: 'FAILED' as const,
+          }
+        : request,
+    )
+
+    savePasswordResetRequests(failedRequests, false)
+    return failedRequests
+  }
+
 }

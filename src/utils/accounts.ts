@@ -53,6 +53,18 @@ export const getAccountPlaceholder = (role: Role) => {
   return 'contoh: admin.fti@untar.ac.id'
 }
 
+export const getAccountDomainHelp = (role: Role) => {
+  if (role === 'mahasiswa') {
+    return 'Mahasiswa wajib memakai akun UNTAR dengan domain @stu.untar.ac.id.'
+  }
+
+  if (role === 'pengajar') {
+    return 'Pengajar wajib memakai akun UNTAR dengan domain @untar.ac.id.'
+  }
+
+  return 'Admin wajib memakai akun UNTAR dengan domain @untar.ac.id.'
+}
+
 export const isUntarAccount = (email: string, role: Role) => {
   const cleanEmail = email.trim().toLowerCase()
 
