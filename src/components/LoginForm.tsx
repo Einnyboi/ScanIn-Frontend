@@ -2,7 +2,7 @@ import type { FormEvent } from 'react'
 
 import { roleOptions, type RoleOption } from '../lib/roleOptions'
 import type { Role } from '../types/auth'
-import { getAccountPlaceholder } from '../utils/accounts'
+import { getAccountDomainHelp, getAccountPlaceholder } from '../utils/accounts'
 import { getPasswordRules } from '../utils/password'
 
 type LoginFormProps = {
@@ -104,8 +104,7 @@ export function LoginForm({
             className="h-14 w-full rounded-[8px] border border-slate-200 bg-white px-4 text-base font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
           />
           <p className="mt-2 text-xs font-semibold text-slate-500">
-            Mahasiswa memakai domain @stu.untar.ac.id. Pengajar dan admin
-            memakai @untar.ac.id.
+            {getAccountDomainHelp(activeRole.id)}
           </p>
         </div>
 

@@ -61,17 +61,25 @@ export function ForgotPasswordPage({
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f4ef] px-5 py-8 text-slate-950">
+    <main className="relative isolate min-h-screen overflow-hidden px-5 py-8 text-slate-950">
+      <div
+        className="absolute inset-0 -z-20 scale-105 bg-cover bg-center"
+        style={{
+          backgroundImage:
+            "linear-gradient(120deg, rgba(31, 18, 50, 0.9), rgba(92, 51, 134, 0.58), rgba(15, 23, 42, 0.78)), url('/untar-campus.jpg')",
+        }}
+      />
+      <div className="absolute inset-0 -z-10 bg-black/20" />
       <div className="mx-auto max-w-3xl">
         <button
           type="button"
           onClick={onBack}
-          className="text-sm font-black text-[#5c3386] transition hover:text-[#7d2228]"
+          className="text-sm font-black text-white transition hover:text-white/75"
         >
           Kembali ke login
         </button>
 
-        <section className="mt-6 rounded-[8px] border border-white bg-white p-6 shadow-2xl shadow-[#2f1d45]/12 sm:p-8">
+        <section className="mt-6 rounded-[8px] border border-white/80 bg-white/95 p-6 shadow-2xl shadow-[#2f1d45]/25 backdrop-blur sm:p-8">
           <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#7d2228]">
             Reset Password
           </p>

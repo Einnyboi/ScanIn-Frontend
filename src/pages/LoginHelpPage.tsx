@@ -82,17 +82,23 @@ export function LoginHelpPage({ initialRole, onBack }: LoginHelpPageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f4ef] px-5 py-8 text-slate-950">
+    <main
+      className="min-h-screen bg-[#1f1232] bg-cover bg-center px-5 py-8 text-slate-950"
+      style={{
+        backgroundImage:
+          'linear-gradient(120deg, rgba(31, 18, 50, 0.92), rgba(92, 51, 134, 0.56)), url(/untar-campus.jpg)',
+      }}
+    >
       <div className="mx-auto max-w-3xl">
         <button
           type="button"
           onClick={onBack}
-          className="text-sm font-black text-[#5c3386] transition hover:text-[#7d2228]"
+          className="rounded-[8px] bg-white/92 px-4 py-2 text-sm font-black text-[#5c3386] shadow-lg shadow-slate-950/15 transition hover:bg-white hover:text-[#7d2228]"
         >
           Kembali ke login
         </button>
 
-        <section className="mt-6 rounded-[8px] border border-white bg-white p-6 shadow-2xl shadow-[#2f1d45]/12 sm:p-8">
+        <section className="mt-6 rounded-[8px] border border-white/70 bg-white/96 p-6 shadow-2xl shadow-[#120b1d]/35 backdrop-blur sm:p-8">
           <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#7d2228]">
             Bantuan Admin Fakultas
           </p>
