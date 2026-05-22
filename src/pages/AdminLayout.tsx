@@ -52,8 +52,13 @@ export default function AdminLayout() {
             {/* Sidebar */}
             <div className="w-64 bg-[#5C3386] text-white flex flex-col">
                 <div className="p-6 border-b border-white border-opacity-20">
-                    <h1 className="text-2xl font-bold">FTI UNTAR</h1>
-                    <p className="text-sm opacity-90">Admin Portal</p>
+                    <div className="relative isolate flex h-24 items-center justify-center rounded-lg bg-white/12 p-3 shadow-2xl shadow-black/20 ring-1 ring-white/20 before:absolute before:inset-0 before:-z-10 before:rounded-xl before:bg-white/22 before:blur-xl before:content-['']">
+                        <img
+                            src="/logo-fti.png"
+                            alt="Logo FTI UNTAR"
+                            className="max-h-full w-full object-contain drop-shadow-[0_6px_14px_rgba(255,255,255,0.22)]"
+                        />
+                    </div>
                 </div>
 
                 <nav className="flex-1 p-4">

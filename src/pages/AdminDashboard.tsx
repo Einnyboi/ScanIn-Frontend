@@ -76,6 +76,7 @@ import {
   reportsChangedEvent,
   saveGeneratedReports,
   type GeneratedReport,
+  type ReportKind,
 } from '../utils/reports'
 import {
   createScheduleId,
@@ -110,12 +111,18 @@ type AdminView =
   | 'attendance'
   | 'reports'
   | 'tickets'
+  | 'notifications'
 
 type DeleteConfirmation = {
   title: string
   description: string
   confirmLabel: string
   onConfirm: () => void
+}
+
+type AdminNotice = {
+  message: string
+  tone: 'danger' | 'success' | 'warning'
 }
 
 const purple = '#5c3386'
@@ -165,6 +172,11 @@ const pageMeta: Record<
     breadcrumb: 'Tiket',
     title: 'Manajemen Tiket',
     subtitle: 'Kelola permohonan koreksi kehadiran mahasiswa',
+  },
+  notifications: {
+    breadcrumb: 'Notifikasi',
+    title: 'Pusat Notifikasi',
+    subtitle: 'Pantau tiket, permintaan reset password, dan pengaduan akun',
   },
 }
 
@@ -247,11 +259,12 @@ export default function AdminDashboard({
   >(() => loadPasswordResetRequests())
   const [scanRecords, setScanRecords] = useState(() => loadStoredScanRecords())
   const [currentTime, setCurrentTime] = useState(() => new Date())
+  const [adminNotice, setAdminNotice] = useState<AdminNotice | null>(null)
 
   const meta = pageMeta[activeView]
   const adminNotificationCount =
     tickets.filter((ticket) => ticket.status === 'Menunggu').length +
-    passwordRequests.filter((request) => request.status === 'Baru').length +
+    passwordRequests.filter(isPasswordResetActionable).length +
     complaints.filter((complaint) => complaint.status === 'Baru').length
 
   useEffect(() => {
@@ -405,19 +418,53 @@ export default function AdminDashboard({
     updateStoredTicket(updatedTicket)
   }
 
-  const handleGenerateReport = () => {
-    const nextReport = createGeneratedReport()
+  const handleGenerateReport = (kind: ReportKind = 'attendance') => {
+    const nextReport = createGeneratedReport(kind)
     const nextReports = [nextReport, ...reports]
     setReports(nextReports)
     saveGeneratedReports(nextReports)
   }
 
-  const handleSendReset = (requestId: string) => {
-    setPasswordRequests(markPasswordResetAsSent(requestId))
+  const handleSendReset = async (requestId: string) => {
+    const nextRequests = await markPasswordResetAsSent(requestId)
+    const request = nextRequests.find((item) => item.id === requestId)
+
+    setPasswordRequests(nextRequests)
+
+    if (!request) {
+      setAdminNotice({
+        tone: 'danger',
+        message: 'Permintaan reset tidak ditemukan. Coba muat ulang data admin.',
+      })
+      return
+    }
+
+    if (request.emailStatus === 'SENT') {
+      setAdminNotice({
+        tone: 'success',
+        message: `Link reset berhasil dikirim ke ${request.registeredEmail}.`,
+      })
+      return
+    }
+
+    if (request.emailStatus === 'SMTP_NOT_CONFIGURED') {
+      setAdminNotice({
+        tone: 'warning',
+        message:
+          'Permintaan tercatat, tapi SMTP backend belum dikonfigurasi jadi email asli belum terkirim.',
+      })
+      return
+    }
+
+    setAdminNotice({
+      tone: 'danger',
+      message:
+        'Backend gagal mengirim email reset. Cek konfigurasi SMTP dan koneksi email.',
+    })
   }
 
   return (
-    <div className="admin-shell min-h-screen bg-[#f5f6fa] text-slate-950 md:grid md:grid-cols-[336px_minmax(0,1fr)]">
+    <div className="admin-shell min-h-screen bg-[#f5f6fa] text-slate-950 md:grid md:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
       <AdminSidebar
         activeView={activeView}
         onLogout={onLogout}
@@ -426,13 +473,19 @@ export default function AdminDashboard({
       />
 
       <main className="min-w-0">
-        <div className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-5 py-4 backdrop-blur sm:px-8">
+        <div className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-5 py-3 backdrop-blur sm:px-7">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <nav
               className="flex items-center gap-3 text-sm font-black text-slate-400"
               aria-label="Breadcrumb admin"
             >
-              <span>FTI UNTAR</span>
+              <span className="flex h-9 w-32 items-center">
+                <img
+                  src="/logo-fti.png"
+                  alt="Logo FTI UNTAR"
+                  className="max-h-full w-full object-contain"
+                />
+              </span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
               <span>Admin</span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -452,7 +505,7 @@ export default function AdminDashboard({
               </div>
               <button
                 type="button"
-                onClick={() => setActiveView('tickets')}
+                onClick={() => setActiveView('notifications')}
                 className="relative flex h-11 items-center justify-center rounded-[8px] border border-slate-200 bg-white px-3 text-sm font-black text-slate-600 transition hover:border-[#5c3386]/40 hover:text-[#5c3386]"
                 aria-label={`${adminNotificationCount} notifikasi admin`}
               >
@@ -468,18 +521,22 @@ export default function AdminDashboard({
           </div>
         </div>
 
-        <div className="px-5 py-8 pb-20 sm:px-8 lg:px-10 xl:px-12">
+        <div className="px-5 py-6 pb-20 sm:px-7 lg:px-8 xl:px-10">
+        {adminNotice ? (
+          <AdminNoticeBanner
+            notice={adminNotice}
+            onClose={() => setAdminNotice(null)}
+          />
+        ) : null}
+
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+            <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
               {meta.title}
             </h1>
-            <p className="mt-3 text-lg font-semibold text-slate-500">
+            <p className="mt-2 text-base font-semibold text-slate-500">
               {meta.subtitle}
             </p>
-          </div>
-          <div className="rounded-[8px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
-            Data tersinkron ke backend
           </div>
         </header>
 
@@ -517,6 +574,15 @@ export default function AdminDashboard({
           {activeView === 'tickets' ? (
             <TicketsView tickets={tickets} onTicketAction={handleTicketAction} />
           ) : null}
+          {activeView === 'notifications' ? (
+            <NotificationsView
+              complaints={complaints}
+              onSendReset={handleSendReset}
+              onTicketAction={handleTicketAction}
+              passwordRequests={passwordRequests}
+              tickets={tickets}
+            />
+          ) : null}
         </div>
         </div>
       </main>
@@ -536,18 +602,18 @@ function AdminSidebar({
   session: LocalSession
 }) {
   return (
-    <aside className="sticky top-0 z-30 bg-[#573485] text-white shadow-xl shadow-[#28183d]/15 md:flex md:h-dvh md:max-h-dvh md:flex-col md:overflow-hidden">
-      <div className="shrink-0 border-b border-white/14 px-5 py-6 sm:px-7 md:py-8">
+    <aside className="sticky top-0 z-30 flex flex-col bg-[#573485] text-white shadow-xl shadow-[#28183d]/15 md:h-dvh md:max-h-dvh md:overflow-hidden">
+      <div className="shrink-0 border-b border-white/14 px-5 py-6 md:px-6">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-[8px] bg-white/14 text-xl font-black text-white">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-white/14 text-xl font-black tracking-tight text-white shadow-lg shadow-[#2b1844]/20 ring-1 ring-white/10">
               FTI
             </div>
-            <div>
-              <p className="text-2xl font-black leading-none tracking-tight">
+            <div className="min-w-0">
+              <p className="truncate text-2xl font-black leading-none tracking-tight text-white">
                 FTI UNTAR
               </p>
-              <p className="mt-1 text-base font-bold text-white/65">
+              <p className="mt-1 text-sm font-semibold text-white/65">
                 Admin Portal
               </p>
             </div>
@@ -563,9 +629,9 @@ function AdminSidebar({
         </div>
       </div>
 
-      <div className="shrink-0 border-b border-white/14 px-5 py-6 sm:px-7">
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#7d2228] text-white shadow-lg shadow-[#321a4c]/20">
+      <div className="shrink-0 border-b border-white/14 px-5 py-5 md:px-6">
+        <div className="flex items-center gap-5">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#7d2228] text-white shadow-xl shadow-[#321a4c]/25">
             <Shield className="h-8 w-8" aria-hidden="true" />
           </div>
           <div className="min-w-0">
@@ -579,8 +645,8 @@ function AdminSidebar({
         </div>
       </div>
 
-      <nav className="flex gap-2 overflow-x-auto px-5 py-4 md:grid md:flex-1 md:content-start md:gap-2 md:overflow-y-auto md:px-4 md:py-7">
-        <p className="hidden px-3 pb-4 text-sm font-black uppercase tracking-[0.14em] text-white/42 md:block">
+      <nav className="flex flex-1 flex-col gap-2 overflow-hidden px-5 py-5">
+        <p className="px-3 pb-2 text-xs font-black uppercase tracking-[0.14em] text-white/42">
           Menu Utama
         </p>
         {menuItems.map((item) => {
@@ -592,33 +658,63 @@ function AdminSidebar({
               key={item.id}
               type="button"
               onClick={() => onViewChange(item.id)}
-              className={`relative flex h-12 min-w-[130px] items-center justify-center gap-3 rounded-[8px] px-4 text-left text-base font-black transition md:h-14 md:min-w-0 md:justify-start md:px-5 ${
+              className={`relative flex h-12 w-full items-center justify-start gap-4 rounded-[8px] px-5 text-left text-lg font-black transition ${
                 isActive
                   ? 'bg-white/14 text-white shadow-lg shadow-[#321a4c]/20'
-                  : 'text-white/62 hover:bg-white/10 hover:text-white'
+                  : 'text-white/64 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <Icon className="h-5 w-5" aria-hidden="true" />
+              <Icon className="h-6 w-6 shrink-0" aria-hidden="true" />
               <span>{item.label}</span>
               {isActive ? (
-                <span className="absolute right-5 hidden h-2.5 w-2.5 rounded-full bg-white/70 md:block" />
+                <span className="absolute right-5 h-2.5 w-2.5 rounded-full bg-white/70" />
               ) : null}
             </button>
           )
         })}
       </nav>
 
-      <div className="hidden shrink-0 border-t border-white/14 p-5 pb-7 md:block">
+      <div className="hidden shrink-0 border-t border-white/14 p-4 md:block">
         <button
           type="button"
           onClick={onLogout}
-          className="flex h-12 w-full items-center gap-4 rounded-[8px] px-4 text-left text-lg font-black text-white/75 transition hover:bg-white/10 hover:text-white"
+          className="flex h-11 w-full items-center gap-4 rounded-[8px] px-5 text-left text-lg font-black text-white/75 transition hover:bg-white/10 hover:text-white"
         >
-          <LogOut className="h-5 w-5" aria-hidden="true" />
+          <LogOut className="h-6 w-6" aria-hidden="true" />
           <span>Keluar</span>
         </button>
       </div>
     </aside>
+  )
+}
+
+function AdminNoticeBanner({
+  notice,
+  onClose,
+}: {
+  notice: AdminNotice
+  onClose: () => void
+}) {
+  const toneClass =
+    notice.tone === 'success'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+      : notice.tone === 'warning'
+        ? 'border-amber-200 bg-amber-50 text-[#8a5b00]'
+        : 'border-red-200 bg-red-50 text-red-700'
+
+  return (
+    <div
+      className={`mb-5 flex flex-col gap-3 rounded-[8px] border px-4 py-3 text-sm font-bold leading-6 shadow-sm sm:flex-row sm:items-center sm:justify-between ${toneClass}`}
+    >
+      <span>{notice.message}</span>
+      <button
+        type="button"
+        onClick={onClose}
+        className="self-start rounded-[8px] px-2 py-1 text-xs font-black transition hover:bg-white/60 sm:self-auto"
+      >
+        Tutup
+      </button>
+    </div>
   )
 }
 
@@ -632,7 +728,7 @@ function DashboardView({
   users,
 }: {
   complaints: SupportComplaint[]
-  onSendReset: (requestId: string) => void
+  onSendReset: (requestId: string) => void | Promise<void>
   passwordRequests: PasswordResetRequest[]
   schedules: CourseSchedule[]
   scanRecordsCount: number
@@ -642,7 +738,7 @@ function DashboardView({
   const studentCount = users.filter((user) => user.role === 'Mahasiswa').length
   const activeSessions = schedules.filter((schedule) => schedule.status === 'active')
   const pendingTickets = tickets.filter((ticket) => ticket.status === 'Menunggu')
-  const pendingResets = passwordRequests.filter((request) => request.status === 'Baru')
+  const pendingResets = passwordRequests.filter(isPasswordResetActionable)
 
   return (
     <div className="space-y-6">
@@ -751,6 +847,218 @@ function DashboardView({
           </div>
         </AdminCard>
       </section>
+    </div>
+  )
+}
+
+function NotificationsView({
+  complaints,
+  onSendReset,
+  onTicketAction,
+  passwordRequests,
+  tickets,
+}: {
+  complaints: SupportComplaint[]
+  onSendReset: (requestId: string) => void | Promise<void>
+  onTicketAction: (ticketId: string, status: CorrectionTicket['status']) => void
+  passwordRequests: PasswordResetRequest[]
+  tickets: CorrectionTicket[]
+}) {
+  const pendingTickets = tickets.filter((ticket) => ticket.status === 'Menunggu')
+  const processedTickets = tickets.filter((ticket) => ticket.status !== 'Menunggu')
+  const newPasswordRequests = passwordRequests.filter(isPasswordResetActionable)
+  const sentPasswordRequests = passwordRequests.filter(
+    (request) => request.status === 'Dikirim' && !isPasswordResetActionable(request),
+  )
+  const newComplaints = complaints.filter((complaint) => complaint.status === 'Baru')
+  const processedComplaints = complaints.filter(
+    (complaint) => complaint.status !== 'Baru',
+  )
+  const hasActiveNotifications =
+    pendingTickets.length || newPasswordRequests.length || newComplaints.length
+  const hasHistory =
+    processedTickets.length ||
+    sentPasswordRequests.length ||
+    processedComplaints.length
+
+  return (
+    <div className="space-y-6">
+      <section className="grid gap-4 md:grid-cols-4">
+        <SimpleStat
+          label="Semua Notifikasi"
+          value={tickets.length + passwordRequests.length + complaints.length}
+        />
+        <SimpleStat label="Tiket Baru" tone="yellow" value={pendingTickets.length} />
+        <SimpleStat
+          label="Reset Password"
+          tone="blue"
+          value={newPasswordRequests.length}
+        />
+        <SimpleStat label="Pengaduan Akun" tone="red" value={newComplaints.length} />
+      </section>
+
+      <AdminCard title="Perlu Ditindaklanjuti">
+        <div className="grid gap-4">
+          {pendingTickets.map((ticket) => (
+            <article
+              key={ticket.id}
+              className="rounded-[8px] border border-slate-200 bg-white p-5"
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <NotificationTypeBadge label="Tiket Koreksi" />
+                  <p className="mt-3 text-lg font-black text-slate-950">
+                    {ticket.studentName}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                    NIM: {ticket.studentId} - {ticket.courseTitle} - {ticket.date}
+                  </p>
+                  <p className="mt-3 rounded-[8px] bg-slate-50 px-4 py-3 text-sm font-semibold leading-6 text-slate-600">
+                    {ticket.reason}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => onTicketAction(ticket.id, 'Disetujui')}
+                    className="flex h-11 items-center gap-2 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Setujui
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onTicketAction(ticket.id, 'Ditolak')}
+                    className="flex h-11 items-center gap-2 rounded-[8px] border border-[#7d2228] px-4 text-sm font-black text-[#7d2228]"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Tolak
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+
+          {newPasswordRequests.map((request) => (
+            <article
+              key={request.id}
+              className="rounded-[8px] border border-slate-200 bg-white p-5"
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <NotificationTypeBadge label="Email Reset Password" tone="purple" />
+                  <p className="mt-3 text-lg font-black text-slate-950">
+                    {request.name}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                    {request.identity} - {request.role} -{' '}
+                    {formatNotificationDate(request.createdAt)}
+                  </p>
+                  <p className="mt-3 rounded-[8px] bg-slate-50 px-4 py-3 text-sm font-semibold leading-6 text-slate-600">
+                    Kirim tautan reset ke {request.registeredEmail}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onSendReset(request.id)}
+                  className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white"
+                >
+                  <KeyRound className="h-4 w-4" />
+                  Kirim Email Reset
+                </button>
+              </div>
+            </article>
+          ))}
+
+          {newComplaints.map((complaint) => (
+            <article
+              key={complaint.id}
+              className="rounded-[8px] border border-slate-200 bg-white p-5"
+            >
+              <NotificationTypeBadge label="Pengaduan Akun" tone="red" />
+              <p className="mt-3 text-lg font-black text-slate-950">
+                {complaint.name}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                {formatSupportRole(complaint.role)} - {complaint.identity} -{' '}
+                {formatNotificationDate(complaint.createdAt)}
+              </p>
+              <p className="mt-2 text-sm font-black text-[#5c3386]">
+                {complaint.category}
+              </p>
+              <p className="mt-3 rounded-[8px] bg-slate-50 px-4 py-3 text-sm font-semibold leading-6 text-slate-600">
+                {complaint.message}
+              </p>
+            </article>
+          ))}
+
+          {!hasActiveNotifications ? (
+            <EmptyState text="Belum ada notifikasi baru yang perlu ditindaklanjuti." />
+          ) : null}
+        </div>
+      </AdminCard>
+
+      <AdminCard title="Riwayat Notifikasi">
+        <div className="grid gap-4">
+          {processedTickets.slice(0, 5).map((ticket) => (
+            <article
+              key={ticket.id}
+              className="flex flex-col gap-3 rounded-[8px] border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <NotificationTypeBadge label="Tiket Koreksi" tone="purple" />
+                <p className="mt-3 font-black text-slate-950">
+                  {ticket.studentName} - {ticket.courseTitle}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  {ticket.date}
+                </p>
+              </div>
+              <StatusBadge status={ticket.status} />
+            </article>
+          ))}
+
+          {sentPasswordRequests.slice(0, 5).map((request) => (
+            <article
+              key={request.id}
+              className="flex flex-col gap-3 rounded-[8px] border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <NotificationTypeBadge label="Email Reset Password" />
+                <p className="mt-3 font-black text-slate-950">{request.name}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  Dikirim ke {request.registeredEmail}
+                </p>
+              </div>
+              <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-700">
+                Dikirim
+              </span>
+            </article>
+          ))}
+
+          {processedComplaints.slice(0, 5).map((complaint) => (
+            <article
+              key={complaint.id}
+              className="flex flex-col gap-3 rounded-[8px] border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <NotificationTypeBadge label="Pengaduan Akun" tone="red" />
+                <p className="mt-3 font-black text-slate-950">{complaint.name}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  {complaint.category}
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-500">
+                {complaint.status}
+              </span>
+            </article>
+          ))}
+
+          {!hasHistory ? (
+            <EmptyState text="Riwayat notifikasi akan muncul setelah admin memproses permintaan." />
+          ) : null}
+        </div>
+      </AdminCard>
     </div>
   )
 }
@@ -879,8 +1187,7 @@ function UsersView({
 
         <AdminCard title="Informasi Akun">
           <p className="mb-5 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
-            Pastikan email sesuai domain institusi. Mahasiswa memakai
-            @stu.untar.ac.id, sedangkan pengajar dan admin memakai @untar.ac.id.
+            {getAdminUserDomainHint(formData.role)}
           </p>
           <form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6" onSubmit={handleSubmit}>
             <Input
@@ -939,7 +1246,7 @@ function UsersView({
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SimpleStat label="Total Pengguna" value={users.length} />
         <SimpleStat
           label="Mahasiswa"
@@ -958,27 +1265,27 @@ function UsersView({
         />
       </section>
 
-      <AdminCard className="p-5 sm:p-7">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <AdminCard className="p-4 sm:p-5">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="relative min-w-0 flex-1 xl:max-w-md">
             <Search
-              className="absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400"
+              className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
               aria-hidden="true"
             />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Cari nama, email, atau ID..."
-              className="h-16 w-full rounded-[8px] border border-slate-300 bg-white pl-14 pr-4 text-base font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/10"
+              className="h-12 w-full rounded-[8px] border border-slate-300 bg-white pl-12 pr-4 text-sm font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/10"
             />
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             {(['Semua', 'Mahasiswa', 'Pengajar', 'Admin'] as const).map((role) => (
               <button
                 key={role}
                 type="button"
                 onClick={() => setRoleFilter(role)}
-                className={`h-14 rounded-[8px] px-6 text-base font-black transition ${
+                className={`h-11 rounded-[8px] px-4 text-sm font-black transition ${
                   roleFilter === role
                     ? 'bg-[#5c3386] text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -991,9 +1298,9 @@ function UsersView({
           <button
             type="button"
             onClick={handleCreate}
-            className="flex h-14 items-center justify-center gap-3 rounded-[8px] bg-[#5c3386] px-7 text-base font-black text-white shadow-lg shadow-[#5c3386]/20 transition hover:-translate-y-0.5 hover:bg-[#4f2b73]"
+            className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white shadow-lg shadow-[#5c3386]/20 transition hover:-translate-y-0.5 hover:bg-[#4f2b73]"
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4" />
             Tambah Pengguna
           </button>
         </div>
@@ -1505,9 +1812,36 @@ function ReportsView({
   onGenerateReport,
   reports,
 }: {
-  onGenerateReport: () => void
+  onGenerateReport: (kind?: ReportKind) => void
   reports: GeneratedReport[]
 }) {
+  const reportActions: Array<{
+    description: string
+    kind: ReportKind
+    title: string
+  }> = [
+    {
+      kind: 'attendance',
+      title: 'Laporan Kehadiran Bulanan',
+      description: 'Ringkasan hadir, terlambat, alpha, dan total sesi.',
+    },
+    {
+      kind: 'system-usage',
+      title: 'Laporan Penggunaan Sistem',
+      description: 'Aktivitas login, scan QR, tiket, reset password, dan unduhan.',
+    },
+    {
+      kind: 'class-performance',
+      title: 'Laporan Kinerja Per Kelas',
+      description: 'Perbandingan performa kehadiran setiap mata kuliah.',
+    },
+    {
+      kind: 'at-risk-students',
+      title: 'Laporan Mahasiswa Bermasalah',
+      description: 'Mahasiswa dengan kehadiran rendah atau tiket berulang.',
+    },
+  ]
+
   return (
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-4">
@@ -1569,18 +1903,52 @@ function ReportsView({
       </section>
 
       <AdminCard className="p-6 sm:p-8">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-2xl font-black text-slate-950">
+            Pilih Jenis Laporan
+          </h2>
+          <p className="text-sm font-semibold leading-6 text-slate-500">
+            Setiap laporan langsung dibuat, tersimpan di daftar, dan bisa diunduh
+            sebagai CSV.
+          </p>
+        </div>
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {reportActions.map((report) => (
+            <button
+              key={report.kind}
+              type="button"
+              onClick={() => onGenerateReport(report.kind)}
+              className="group flex min-h-44 flex-col justify-between rounded-[8px] border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-[#5c3386]/40 hover:shadow-lg hover:shadow-slate-900/8"
+            >
+              <div>
+                <p className="text-base font-black text-slate-950">
+                  {report.title}
+                </p>
+                <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
+                  {report.description}
+                </p>
+              </div>
+              <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-[#5c3386]">
+                Generate
+                <ChevronRight
+                  className="h-4 w-4 transition group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </span>
+            </button>
+          ))}
+        </div>
+      </AdminCard>
+
+      <AdminCard className="p-6 sm:p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h2 className="text-2xl font-black text-slate-950 sm:text-3xl">
             Laporan Tersedia
           </h2>
-          <button
-            type="button"
-            onClick={onGenerateReport}
-            className="flex h-14 items-center justify-center gap-3 rounded-[8px] bg-[#5c3386] px-6 text-base font-black text-white shadow-lg shadow-[#5c3386]/20 transition hover:bg-[#4f2b73]"
-          >
-            <FileText className="h-5 w-5" />
-            Generate Laporan Baru
-          </button>
+          <div className="flex min-h-14 items-center gap-3 rounded-[8px] border border-[#5c3386]/15 bg-[#5c3386]/5 px-5 text-sm font-black text-[#5c3386]">
+            <FileText className="h-5 w-5" aria-hidden="true" />
+            <span>{reports.length} laporan tersimpan</span>
+          </div>
         </div>
         <div className="mt-7 grid gap-5">
           {reports.map((report) => (
@@ -1623,6 +1991,7 @@ function TicketsView({
   tickets: CorrectionTicket[]
 }) {
   const waiting = tickets.filter((ticket) => ticket.status === 'Menunggu').length
+  const pendingTickets = tickets.filter((ticket) => ticket.status === 'Menunggu')
 
   return (
     <div className="space-y-6">
@@ -1642,7 +2011,7 @@ function TicketsView({
       </section>
 
       <div className="grid gap-4">
-        {tickets.map((ticket) => (
+        {pendingTickets.map((ticket) => (
           <article
             key={ticket.id}
             className="rounded-[8px] border-l-4 border-[#5c3386] bg-white p-5 shadow-lg shadow-slate-900/8"
@@ -1690,8 +2059,8 @@ function TicketsView({
             </div>
           </article>
         ))}
-        {!tickets.length ? (
-          <EmptyState text="Belum ada tiket koreksi yang masuk." />
+        {!pendingTickets.length ? (
+          <EmptyState text="Belum ada tiket koreksi baru yang perlu ditinjau." />
         ) : null}
       </div>
     </div>
@@ -1775,9 +2144,9 @@ function SimpleStat({
               : 'text-slate-950'
 
   return (
-    <div className="admin-surface min-h-36 rounded-[8px] border border-white bg-white p-7 shadow-lg shadow-slate-900/8">
-      <p className="text-lg font-semibold text-slate-500">{label}</p>
-      <p className={`mt-4 text-4xl font-black ${color}`}>{value}</p>
+    <div className="admin-surface min-h-28 rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/8">
+      <p className="text-base font-semibold text-slate-500">{label}</p>
+      <p className={`mt-3 text-3xl font-black ${color}`}>{value}</p>
     </div>
   )
 }
@@ -1792,7 +2161,7 @@ function AdminRoleBadge({ role }: { role: AdminUserRole }) {
 
   return (
     <span
-      className={`inline-flex min-w-24 items-center justify-center rounded-full px-4 py-2 text-sm font-black ${tone}`}
+      className={`inline-flex min-w-20 items-center justify-center rounded-full px-3 py-1.5 text-xs font-black ${tone}`}
     >
       {role}
     </span>
@@ -1807,7 +2176,7 @@ function AdminStatusBadge({ status }: { status: AdminUser['status'] }) {
 
   return (
     <span
-      className={`inline-flex min-w-20 items-center justify-center rounded-full px-4 py-2 text-sm font-black ${tone}`}
+      className={`inline-flex min-w-18 items-center justify-center rounded-full px-3 py-1.5 text-xs font-black ${tone}`}
     >
       {status}
     </span>
@@ -1854,10 +2223,26 @@ function PasswordResetItem({
   onSend,
   request,
 }: {
-  onSend: () => void
+  onSend: () => void | Promise<void>
   request: PasswordResetRequest
 }) {
-  const isSent = request.status === 'Dikirim'
+  const isEmailSent = request.emailStatus === 'SENT'
+  const hasEmailIssue =
+    request.emailStatus === 'FAILED' ||
+    request.emailStatus === 'SMTP_NOT_CONFIGURED'
+  const buttonText = isEmailSent
+    ? 'Sudah dikirim'
+    : hasEmailIssue
+      ? 'Coba Kirim Lagi'
+      : 'Kirim Email Reset'
+  const helperText =
+    request.emailStatus === 'SMTP_NOT_CONFIGURED'
+      ? 'SMTP backend belum aktif.'
+      : request.emailStatus === 'FAILED'
+        ? 'Email gagal dikirim.'
+        : request.emailStatus === 'SENT'
+          ? 'Email berhasil dikirim.'
+          : ''
 
   return (
     <article className="rounded-[8px] border border-slate-200 p-4">
@@ -1876,15 +2261,18 @@ function PasswordResetItem({
       <button
         type="button"
         onClick={onSend}
-        disabled={isSent}
+        disabled={isEmailSent}
         className={`mt-3 h-10 w-full rounded-[8px] text-sm font-black ${
-          isSent
+          isEmailSent
             ? 'cursor-not-allowed bg-slate-100 text-slate-400'
             : 'bg-[#5c3386] text-white'
         }`}
       >
-        {isSent ? 'Sudah dikirim' : 'Kirim Email Reset'}
+        {buttonText}
       </button>
+      {helperText ? (
+        <p className="mt-2 text-xs font-bold text-slate-500">{helperText}</p>
+      ) : null}
     </article>
   )
 }
@@ -1976,16 +2364,10 @@ function DeletePinModal({
 
         <div className="mx-auto flex w-fit items-center gap-3 pt-2">
           <img
-            src="/logo-untar.png"
-            alt="UNTAR"
-            className="h-10 w-10 object-contain"
+            src="/logo-fti.png"
+            alt="Logo FTI UNTAR"
+            className="h-16 w-44 object-contain drop-shadow-sm"
           />
-          <div>
-            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#7d2228]">
-              UNTAR
-            </p>
-            <p className="text-xs font-bold text-slate-500">Admin Presensi</p>
-          </div>
         </div>
 
         <div className="mt-5 text-center">
@@ -2127,6 +2509,27 @@ function StatusBadge({ status }: { status: CorrectionTicket['status'] }) {
   return <span className={`rounded-full px-3 py-1 text-xs font-black ${tone}`}>{status}</span>
 }
 
+function NotificationTypeBadge({
+  label,
+  tone = 'yellow',
+}: {
+  label: string
+  tone?: 'purple' | 'red' | 'yellow'
+}) {
+  const color =
+    tone === 'purple'
+      ? 'bg-[#5c3386]/10 text-[#5c3386]'
+      : tone === 'red'
+        ? 'bg-[#7d2228]/10 text-[#7d2228]'
+        : 'bg-amber-100 text-[#9b6b07]'
+
+  return (
+    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${color}`}>
+      {label}
+    </span>
+  )
+}
+
 function TimeInput({
   label,
   onChange,
@@ -2144,11 +2547,7 @@ function TimeInput({
           type="time"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-16 w-full rounded-[8px] border border-slate-300 px-4 pr-12 text-base font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/10 sm:text-lg"
-        />
-        <Clock
-          className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500"
-          aria-hidden="true"
+          className="h-16 w-full rounded-[8px] border border-slate-300 px-4 text-base font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/10 sm:text-lg"
         />
       </div>
     </label>
@@ -2268,7 +2667,7 @@ function DataTable({
               {columns.map((column) => (
                 <th
                   key={column}
-                  className="px-6 py-5 text-sm font-black text-slate-600"
+                  className="px-5 py-4 text-sm font-black text-slate-600"
                 >
                   {column}
                 </th>
@@ -2281,7 +2680,7 @@ function DataTable({
                 {row.map((cell, index) => (
                   <td
                     key={index}
-                    className="px-6 py-5 text-sm font-semibold leading-6 text-slate-700"
+                    className="px-5 py-4 text-sm font-semibold leading-6 text-slate-700"
                   >
                     {cell}
                   </td>
@@ -2319,8 +2718,50 @@ function formatAdminTime(date: Date) {
   })
 }
 
+function formatNotificationDate(value: string) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) return '-'
+
+  return date.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatSupportRole(role: SupportComplaint['role']) {
+  if (role === 'mahasiswa') return 'Mahasiswa'
+  if (role === 'pengajar') return 'Pengajar'
+
+  return 'Admin'
+}
+
+function isPasswordResetActionable(request: PasswordResetRequest) {
+  return (
+    request.status === 'Baru' ||
+    request.emailStatus === 'FAILED' ||
+    request.emailStatus === 'SMTP_NOT_CONFIGURED' ||
+    (request.status === 'Dikirim' && request.emailStatus !== 'SENT')
+  )
+}
+
 function getExpectedEmailDomain(role: AdminUserRole) {
   return role === 'Mahasiswa' ? '@stu.untar.ac.id' : '@untar.ac.id'
+}
+
+function getAdminUserDomainHint(role: AdminUserRole) {
+  if (role === 'Mahasiswa') {
+    return 'Mahasiswa wajib memakai email institusi dengan domain @stu.untar.ac.id.'
+  }
+
+  if (role === 'Pengajar') {
+    return 'Pengajar wajib memakai email institusi dengan domain @untar.ac.id.'
+  }
+
+  return 'Admin wajib memakai email institusi dengan domain @untar.ac.id.'
 }
 
 function createEmptyUser(): AdminUser {
