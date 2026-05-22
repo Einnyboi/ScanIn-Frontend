@@ -16,7 +16,7 @@ export function BrandPanel() {
 
       <div className="brand-copy max-w-2xl">
         <div className="mb-8 flex items-center gap-4">
-          <div className="relative isolate flex h-28 w-64 items-center justify-center rounded-[8px] bg-white/12 p-3 shadow-2xl shadow-black/25 ring-1 ring-white/18 before:absolute before:inset-0 before:-z-10 before:rounded-[12px] before:bg-white/24 before:blur-xl before:content-['']">
+          <div className="relative isolate flex h-[78px] w-48 items-center justify-center rounded-xl border border-white/25 bg-white/85 px-3 shadow-xl shadow-black/25 backdrop-blur-md">
             {isLogoMissing ? (
               <span className="text-3xl font-black tracking-[0.08em] text-[#7d2228]">
                 FTI
@@ -25,7 +25,7 @@ export function BrandPanel() {
               <img
                 src="/logo-fti.png"
                 alt="Logo FTI Universitas Tarumanagara"
-                className="max-h-full w-full object-contain drop-shadow-[0_6px_16px_rgba(255,255,255,0.28)]"
+                className="h-40 w-auto object-contain drop-shadow-md"
                 onError={() => setIsLogoMissing(true)}
               />
             )}
