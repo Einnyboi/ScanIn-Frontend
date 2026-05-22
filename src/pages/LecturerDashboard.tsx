@@ -138,8 +138,8 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
 
   const approvedTickets = tickets.filter((ticket) => ticket.status === 'Disetujui')
     .length
-  const pendingTicketCount = tickets.filter((ticket) => ticket.status === 'Menunggu')
-    .length
+  const pendingTickets = tickets.filter((ticket) => ticket.status === 'Menunggu')
+  const pendingTicketCount = pendingTickets.length
 
   const activeStudents = useMemo(
     () =>
@@ -325,6 +325,21 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     }
   }
 
+  const handleTicketNotificationClick = () => {
+    setScannerMessage(
+      pendingTicketCount
+        ? `${pendingTicketCount} tiket koreksi menunggu keputusan pengajar.`
+        : 'Belum ada permohonan koreksi baru.',
+    )
+
+    const ticketPanel = document.getElementById('lecturer-ticket-panel')
+
+    if (ticketPanel) {
+      ticketPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      ticketPanel.focus({ preventScroll: true })
+    }
+  }
+
   if (activeMetric) {
     return (
       <StatisticsPage
@@ -353,11 +368,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
       notificationCount={pendingTicketCount}
       notificationLabel="Tiket Baru"
       onLogout={onLogout}
-      onNotificationClick={() =>
-        setScannerMessage(
-          `${pendingTicketCount} tiket koreksi menunggu keputusan pengajar.`,
-        )
-      }
+      onNotificationClick={handleTicketNotificationClick}
       session={session}
     >
       <div className="space-y-6">
@@ -509,58 +520,78 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
             </div>
           </div>
 
-          <div className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
-            <h2 className="text-2xl font-black text-slate-950">
-              Permohonan Koreksi Kehadiran
-            </h2>
+          <div
+            id="lecturer-ticket-panel"
+            tabIndex={-1}
+            className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6 outline-none focus:ring-4 focus:ring-[#5c3386]/12"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
+                  Antrian Tiket
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  Permohonan Koreksi Kehadiran
+                </h2>
+              </div>
+              <span className="inline-flex h-9 items-center rounded-full bg-[#5c3386]/8 px-3 text-xs font-black text-[#5c3386]">
+                {pendingTicketCount} menunggu
+              </span>
+            </div>
             <div className="mt-5 space-y-3">
-              {tickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="rounded-[8px] border border-slate-200 p-4"
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-lg font-black text-slate-950">
-                        {ticket.studentName}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-500">
-                        NIM: {ticket.studentId}
-                      </p>
-                      <p className="mt-3 text-sm font-semibold text-slate-600">
-                        <span className="font-black">Mata Kuliah:</span>{' '}
-                        {ticket.courseTitle}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-600">
-                        <span className="font-black">Tanggal:</span> {ticket.date}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-600">
-                        <span className="font-black">Alasan:</span>{' '}
-                        {ticket.reason}
-                      </p>
+              {pendingTickets.length ? (
+                pendingTickets.map((ticket) => (
+                  <div
+                    key={ticket.id}
+                    className="rounded-[8px] border border-slate-200 p-4"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-lg font-black text-slate-950">
+                          {ticket.studentName}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">
+                          NIM: {ticket.studentId}
+                        </p>
+                        <p className="mt-3 text-sm font-semibold text-slate-600">
+                          <span className="font-black">Mata Kuliah:</span>{' '}
+                          {ticket.courseTitle}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-600">
+                          <span className="font-black">Tanggal:</span> {ticket.date}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-600">
+                          <span className="font-black">Alasan:</span>{' '}
+                          {ticket.reason}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateTicket(ticket.id, 'Disetujui')}
+                          className="h-10 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
+                        >
+                          Setujui
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateTicket(ticket.id, 'Ditolak')}
+                          className="h-10 rounded-[8px] border border-[#7d2228] px-4 text-sm font-black text-[#7d2228] transition hover:bg-[#7d2228] hover:text-white"
+                        >
+                          Tolak
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateTicket(ticket.id, 'Disetujui')}
-                        className="h-10 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
-                      >
-                        Setujui
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateTicket(ticket.id, 'Ditolak')}
-                        className="h-10 rounded-[8px] border border-[#7d2228] px-4 text-sm font-black text-[#7d2228] transition hover:bg-[#7d2228] hover:text-white"
-                      >
-                        Tolak
-                      </button>
-                    </div>
+                    <p className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-[#9b6b07]">
+                      Menunggu keputusan
+                    </p>
                   </div>
-                  <p className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
-                    {ticket.status}
-                  </p>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-500">
+                  Belum ada permohonan koreksi baru.
+                </p>
+              )}
             </div>
           </div>
         </section>

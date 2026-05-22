@@ -59,6 +59,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   const [secondsLeft, setSecondsLeft] = useState(15)
   const [isQrVisible, setIsQrVisible] = useState(false)
   const [isTicketOpen, setIsTicketOpen] = useState(false)
+  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false)
   const [ticketReason, setTicketReason] = useState('')
   const [ticketMessage, setTicketMessage] = useState('')
   const [studentTickets, setStudentTickets] = useState(() =>
@@ -186,6 +187,30 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
     setNotifications(loadStudentNotifications(session.identity))
   }
 
+  const handleOpenQrPage = () => {
+    if (!canShowQr) {
+      return
+    }
+
+    const nextPayload = createPayload(session, selectedCourse)
+    setPayload(nextPayload)
+    saveActiveQrPayload(nextPayload)
+    setSecondsLeft(15)
+    setIsQrVisible(true)
+  }
+
+  const handleNotificationShortcut = () => {
+    setIsNotificationPanelOpen(true)
+    window.setTimeout(() => {
+      const notificationPanel = document.getElementById('student-notifications')
+
+      if (notificationPanel) {
+        notificationPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        notificationPanel.focus({ preventScroll: true })
+      }
+    }, 0)
+  }
+
   if (activeMetric) {
     return (
       <StatisticsPage
@@ -195,17 +220,39 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
     )
   }
 
+  if (isQrVisible) {
+    return (
+      <StudentQrPage
+        canShowQr={canShowQr}
+        course={selectedCourse}
+        onBack={() => {
+          setIsQrVisible(false)
+          setPayload(null)
+          setSecondsLeft(15)
+        }}
+        payload={payload}
+        secondsLeft={secondsLeft}
+        selectedStatus={selectedStatus}
+        session={session}
+      />
+    )
+  }
+
   return (
     <DashboardShell
       notificationCount={unreadNotificationCount}
       notificationLabel="Notifikasi"
       onLogout={onLogout}
-      onNotificationClick={handleMarkNotificationsRead}
+      onNotificationClick={handleNotificationShortcut}
       session={session}
     >
       <div className="space-y-6">
-        {notifications.length ? (
-          <section className="rounded-[8px] border border-[#5c3386]/15 bg-white p-5 shadow-lg shadow-slate-900/6">
+        {notifications.length || isNotificationPanelOpen ? (
+          <section
+            id="student-notifications"
+            tabIndex={-1}
+            className="rounded-[8px] border border-[#5c3386]/15 bg-white p-5 shadow-lg shadow-slate-900/6 outline-none focus:ring-4 focus:ring-[#5c3386]/12"
+          >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
@@ -226,21 +273,29 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
               ) : null}
             </div>
             <div className="mt-4 grid gap-3">
-              {notifications.slice(0, 3).map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`rounded-[8px] border px-4 py-3 ${
-                    notification.isRead
-                      ? 'border-slate-200 bg-slate-50'
-                      : 'border-[#5c3386]/20 bg-[#5c3386]/6'
-                  }`}
-                >
-                  <p className="font-black text-slate-900">{notification.title}</p>
-                  <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
-                    {notification.message}
-                  </p>
-                </div>
-              ))}
+              {notifications.length ? (
+                notifications.slice(0, 3).map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`rounded-[8px] border px-4 py-3 ${
+                      notification.isRead
+                        ? 'border-slate-200 bg-slate-50'
+                        : 'border-[#5c3386]/20 bg-[#5c3386]/6'
+                    }`}
+                  >
+                    <p className="font-black text-slate-900">
+                      {notification.title}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
+                      {notification.message}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
+                  Belum ada notifikasi baru dari pengajar.
+                </p>
+              )}
             </div>
           </section>
         ) : null}
@@ -351,7 +406,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
 
               <button
                 type="button"
-                onClick={() => setIsQrVisible(true)}
+                onClick={handleOpenQrPage}
                 disabled={!canShowQr}
                 className={`mt-5 flex h-12 w-full items-center justify-center rounded-[8px] px-4 text-sm font-black transition ${
                   canShowQr
@@ -359,7 +414,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                     : 'bg-slate-100 text-slate-400'
                 }`}
               >
-                {canShowQr ? 'Tampilkan QR Presensi' : 'QR belum tersedia'}
+                {canShowQr ? 'Buka Halaman QR Presensi' : 'QR belum tersedia'}
               </button>
 
               {!canShowQr ? (
@@ -369,10 +424,6 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                 </p>
               ) : null}
             </div>
-
-            {isQrVisible && payload && canShowQr ? (
-              <QrCodeCard payload={payload} secondsLeft={secondsLeft} />
-            ) : null}
 
             {isTicketOpen ? (
               <div className="rounded-[8px] border border-[#7d2228]/14 bg-white p-5 shadow-lg shadow-slate-900/6">
@@ -454,6 +505,95 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
         </section>
       </div>
     </DashboardShell>
+  )
+}
+
+function StudentQrPage({
+  canShowQr,
+  course,
+  onBack,
+  payload,
+  secondsLeft,
+  selectedStatus,
+  session,
+}: {
+  canShowQr: boolean
+  course: CourseSchedule
+  onBack: () => void
+  payload: QrPayload | null
+  secondsLeft: number
+  selectedStatus: RuntimeStatus
+  session: LocalSession
+}) {
+  return (
+    <main className="min-h-screen bg-[#f6f7fb] text-slate-950">
+      <header className="border-b border-slate-200 bg-white px-5 py-5 shadow-sm">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-3 text-sm font-black text-slate-600 transition hover:text-[#5c3386]"
+            >
+              <span aria-hidden="true" className="text-2xl leading-none">
+                &larr;
+              </span>
+              Kembali ke Dashboard
+            </button>
+            <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+              QR Presensi
+            </h1>
+            <p className="mt-2 text-sm font-semibold text-slate-500">
+              {session.name} - {session.identity}
+            </p>
+          </div>
+
+          <div className="rounded-[8px] border border-[#5c3386]/15 bg-[#5c3386]/8 px-4 py-3 text-sm font-black text-[#5c3386]">
+            Token berubah tiap 15 detik
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-6xl px-5 py-6 lg:py-8">
+        <section className="mb-5 rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
+            Sesi Aktif
+          </p>
+          <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-slate-950">
+                {course.title}
+              </h2>
+              <p className="mt-2 text-sm font-semibold text-slate-500">
+                {course.time} - {course.room} - {course.lecturer}
+              </p>
+            </div>
+            <StatusBadge status={selectedStatus} />
+          </div>
+        </section>
+
+        {canShowQr && payload ? (
+          <QrCodeCard payload={payload} secondsLeft={secondsLeft} />
+        ) : (
+          <section className="rounded-[8px] border border-dashed border-slate-300 bg-white p-8 text-center shadow-lg shadow-slate-900/6">
+            <h2 className="text-2xl font-black text-slate-950">
+              QR belum tersedia
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
+              QR hanya tampil saat jadwal kelas sedang aktif. Status kelas saat
+              ini: {getRuntimeLabel(selectedStatus)}.
+            </p>
+            <button
+              type="button"
+              onClick={onBack}
+              className="mt-6 inline-flex h-11 items-center justify-center rounded-[8px] bg-[#5c3386] px-5 text-sm font-black text-white transition hover:bg-[#4f2b73]"
+            >
+              Pilih Jadwal Lain
+            </button>
+          </section>
+        )}
+      </div>
+    </main>
   )
 }
 
