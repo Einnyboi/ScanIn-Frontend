@@ -21,6 +21,14 @@ type WeeklyAttendance = {
   alpha: number
 }
 
+type SessionStatistics = {
+  label: string
+  dateRange: string
+  opened: number
+  closed: number
+  autoClosed: number
+}
+
 type LinePoint = {
   label: string
   detail: string
@@ -34,6 +42,7 @@ type SummaryItem = {
 }
 
 const purple = '#5c3386'
+const green = '#3f9b4d'
 const yellow = '#f2aa3a'
 const red = '#7d2228'
 const axis = '#687280'
@@ -76,6 +85,15 @@ const ticketTrend: LinePoint[] = [
   { label: 'Week 4', detail: '22-28 Apr 2026', value: 0 },
   { label: 'Week 5', detail: '29 Apr-5 Mei 2026', value: 1 },
   { label: 'Week 6', detail: '6-12 Mei 2026', value: 0 },
+]
+
+const weeklySessions: SessionStatistics[] = [
+  { label: 'Week 1', dateRange: '1-7 Apr 2026', opened: 2, closed: 2, autoClosed: 0 },
+  { label: 'Week 2', dateRange: '8-14 Apr 2026', opened: 3, closed: 2, autoClosed: 1 },
+  { label: 'Week 3', dateRange: '15-21 Apr 2026', opened: 3, closed: 3, autoClosed: 0 },
+  { label: 'Week 4', dateRange: '22-28 Apr 2026', opened: 2, closed: 1, autoClosed: 1 },
+  { label: 'Week 5', dateRange: '29 Apr-5 Mei 2026', opened: 4, closed: 3, autoClosed: 1 },
+  { label: 'Week 6', dateRange: '6-12 Mei 2026', opened: 3, closed: 3, autoClosed: 0 },
 ]
 
 const lateDetails = [
@@ -127,6 +145,33 @@ const ticketDetails = [
     date: '9 Mei 2026',
     course: 'Kecerdasan Buatan',
     status: 'Ditolak',
+  },
+]
+
+const sessionDetails = [
+  {
+    id: 'session-1',
+    date: '20 Mei 2026',
+    course: 'Basis Data Lanjut',
+    openedAt: '07:45',
+    closedAt: '10:30',
+    status: 'Auto-close',
+  },
+  {
+    id: 'session-2',
+    date: '20 Mei 2026',
+    course: 'Pemrograman Web',
+    openedAt: '10:10',
+    closedAt: '12:18',
+    status: 'Tutup manual',
+  },
+  {
+    id: 'session-3',
+    date: '19 Mei 2026',
+    course: 'Kecerdasan Buatan',
+    openedAt: '12:45',
+    closedAt: '15:20',
+    status: 'Tutup manual',
   },
 ]
 
@@ -223,6 +268,26 @@ export function StatisticsPage({ mode, onBack }: StatisticsPageProps) {
                 detail.status,
               ])}
               tone="red"
+            />
+          </>
+        ) : null}
+
+        {page.kind === 'session' ? (
+          <>
+            <ChartCard title="Grafik Sesi Absensi Mingguan">
+              <SessionBarChart data={weeklySessions} />
+            </ChartCard>
+            <DetailTable
+              columns={['Tanggal', 'Mata Kuliah', 'Sesi Dibuka', 'Tutup Sesi', 'Status']}
+              title="Detail Sesi Absensi"
+              rows={sessionDetails.map((detail) => [
+                detail.date,
+                detail.course,
+                detail.openedAt,
+                detail.closedAt,
+                detail.status,
+              ])}
+              tone="purple"
             />
           </>
         ) : null}
@@ -435,6 +500,177 @@ function WeeklyBarChart({ data }: { data: WeeklyAttendance[] }) {
   )
 }
 
+function SessionBarChart({ data }: { data: SessionStatistics[] }) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const width = 940
+  const height = 330
+  const chartLeft = 54
+  const chartTop = 22
+  const chartWidth = 840
+  const chartHeight = 230
+  const maxValue = 5
+  const groupWidth = chartWidth / data.length
+  const bars = [
+    { key: 'opened' as const, color: purple, label: 'Sesi dibuka' },
+    { key: 'closed' as const, color: green, label: 'Tutup manual' },
+    { key: 'autoClosed' as const, color: yellow, label: 'Auto-close' },
+  ]
+
+  const yPosition = (value: number) =>
+    chartTop + chartHeight - (value / maxValue) * chartHeight
+  const selectedItem =
+    selectedIndex === null ? null : data[Math.min(selectedIndex, data.length - 1)]
+  const selectedX =
+    selectedIndex === null
+      ? 0
+      : chartLeft + selectedIndex * groupWidth + groupWidth / 2
+
+  return (
+    <div className="min-w-[900px]">
+      <p className="mb-3 text-sm font-bold text-slate-500">
+        Klik bar grafik untuk melihat jumlah sesi dibuka, tutup manual, dan auto-close.
+      </p>
+      <svg
+        role="img"
+        aria-label="Grafik sesi absensi mingguan"
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-auto w-full"
+      >
+        {[0, 1, 2, 3, 4, 5].map((tick) => {
+          const y = yPosition(tick)
+          return (
+            <g key={tick}>
+              <line
+                x1={chartLeft}
+                x2={chartLeft + chartWidth}
+                y1={y}
+                y2={y}
+                stroke={grid}
+                strokeDasharray="4 4"
+              />
+              <text
+                fill={axis}
+                fontSize="14"
+                fontWeight="700"
+                textAnchor="end"
+                x={chartLeft - 10}
+                y={y + 5}
+              >
+                {tick}
+              </text>
+            </g>
+          )
+        })}
+
+        <line
+          x1={chartLeft}
+          x2={chartLeft}
+          y1={chartTop}
+          y2={chartTop + chartHeight}
+          stroke={axis}
+          strokeWidth="1.5"
+        />
+        <line
+          x1={chartLeft}
+          x2={chartLeft + chartWidth}
+          y1={chartTop + chartHeight}
+          y2={chartTop + chartHeight}
+          stroke={axis}
+          strokeWidth="1.5"
+        />
+
+        {selectedIndex !== null ? (
+          <rect
+            fill="rgba(148, 163, 184, 0.22)"
+            height={chartHeight}
+            pointerEvents="none"
+            width={groupWidth * 0.66}
+            x={selectedX - groupWidth * 0.33}
+            y={chartTop}
+          />
+        ) : null}
+
+        {data.map((item, itemIndex) => {
+          const groupX = chartLeft + itemIndex * groupWidth + groupWidth / 2
+
+          return (
+            <g key={item.label}>
+              {bars.map((bar, barIndex) => {
+                const barWidth = 14
+                const gap = 7
+                const value = item[bar.key]
+                const x = groupX - 32 + barIndex * (barWidth + gap)
+                const y = yPosition(value)
+                const barHeight = chartTop + chartHeight - y
+
+                return (
+                  <rect
+                    key={bar.key}
+                    className="cursor-pointer"
+                    fill={bar.color}
+                    height={barHeight}
+                    onClick={() => setSelectedIndex(itemIndex)}
+                    rx="2"
+                    width={barWidth}
+                    x={x}
+                    y={y}
+                  >
+                    <title>{`${item.label} - ${bar.label}: ${value}`}</title>
+                  </rect>
+                )
+              })}
+              <text
+                fill={axis}
+                fontSize="15"
+                fontWeight="700"
+                textAnchor="middle"
+                x={groupX}
+                y={chartTop + chartHeight + 28}
+              >
+                {item.label}
+              </text>
+            </g>
+          )
+        })}
+
+        {selectedItem ? (
+          <g
+            pointerEvents="none"
+            transform={`translate(${Math.min(
+              selectedX + 18,
+              chartLeft + chartWidth - 174,
+            )} ${chartTop + 16})`}
+          >
+            <rect fill="white" height="124" stroke="#d1d5db" width="166" />
+            <text fill="#020617" fontSize="15" fontWeight="900" x="14" y="26">
+              {selectedItem.label}
+            </text>
+            <text fill={axis} fontSize="11" fontWeight="800" x="14" y="44">
+              {selectedItem.dateRange}
+            </text>
+            <text fill={purple} fontSize="14" fontWeight="800" x="14" y="64">
+              Dibuka: {selectedItem.opened}
+            </text>
+            <text fill={green} fontSize="14" fontWeight="800" x="14" y="88">
+              Tutup manual: {selectedItem.closed}
+            </text>
+            <text fill={yellow} fontSize="14" fontWeight="800" x="14" y="112">
+              Auto-close: {selectedItem.autoClosed}
+            </text>
+          </g>
+        ) : null}
+      </svg>
+      <ChartLegend
+        items={[
+          { label: 'Sesi dibuka', color: purple },
+          { label: 'Tutup manual', color: green },
+          { label: 'Auto-close', color: yellow },
+        ]}
+      />
+    </div>
+  )
+}
+
 function LineChart({
   color,
   data,
@@ -624,9 +860,14 @@ function DetailTable({
   columns: string[]
   rows: string[][]
   title: string
-  tone: 'yellow' | 'red'
+  tone: 'yellow' | 'red' | 'purple'
 }) {
-  const accent = tone === 'yellow' ? 'text-[#c28a08]' : 'text-[#7d2228]'
+  const accent =
+    tone === 'yellow'
+      ? 'text-[#c28a08]'
+      : tone === 'purple'
+        ? 'text-[#5c3386]'
+        : 'text-[#7d2228]'
 
   return (
     <section className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/8 sm:p-7">
@@ -671,7 +912,7 @@ const getStatisticsConfig = (
   mode: StatisticsMode,
 ): {
   title: string
-  kind: 'attendance' | 'late' | 'ticket'
+  kind: 'attendance' | 'late' | 'ticket' | 'session'
   summary: SummaryItem[]
 } => {
   if (mode === 'student-late') {
@@ -715,7 +956,7 @@ const getStatisticsConfig = (
   if (mode === 'lecturer-session') {
     return {
       title: 'Statistik Sesi Presensi',
-      kind: 'attendance',
+      kind: 'session',
       summary: [
         { label: 'Total Sesi', value: '3' },
         { label: 'Sesi Aktif', value: '1', tone: 'green' },
