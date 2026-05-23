@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 
 export type Role = 'ADMIN' | 'DOSEN' | 'ASDOS' | 'MAHASISWA'
 
@@ -19,27 +18,52 @@ interface AuthState {
   logout: () => void
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      token: null,
-      isAuthenticated: false,
+const USER_STORAGE_KEY = 'scanin_user'
+const TOKEN_STORAGE_KEY = 'scanin_token'
 
-      setAuth: (user, token) => {
-        localStorage.setItem('scanin_token', token)
-        set({ user, token, isAuthenticated: true })
-      },
+const getStoredAuth = () => {
+  if (typeof window === 'undefined') {
+    return { user: null, token: null }
+  }
 
-      logout: () => {
-        localStorage.removeItem('scanin_token')
-        localStorage.removeItem('scanin_user')
-        set({ user: null, token: null, isAuthenticated: false })
-      },
-    }),
-    {
-      name: 'scanin_user',
-      partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
-    },
-  ),
-)
+  const rawUser = localStorage.getItem(USER_STORAGE_KEY)
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+
+  if (!rawUser) {
+    return { user: null, token }
+  }
+
+  try {
+    const parsed = JSON.parse(rawUser)
+    const user = parsed?.state?.user ?? parsed
+    const storedToken = parsed?.state?.token ?? token
+
+    return {
+      user: user?.id ? user : null,
+      token: storedToken ?? null,
+    }
+  } catch {
+    localStorage.removeItem(USER_STORAGE_KEY)
+    return { user: null, token }
+  }
+}
+
+const initialAuth = getStoredAuth()
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: initialAuth.user,
+  token: initialAuth.token,
+  isAuthenticated: Boolean(initialAuth.user && initialAuth.token),
+
+  setAuth: (user, token) => {
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user))
+    localStorage.setItem(TOKEN_STORAGE_KEY, token)
+    set({ user, token, isAuthenticated: true })
+  },
+
+  logout: () => {
+    localStorage.removeItem(TOKEN_STORAGE_KEY)
+    localStorage.removeItem(USER_STORAGE_KEY)
+    set({ user: null, token: null, isAuthenticated: false })
+  },
+}))

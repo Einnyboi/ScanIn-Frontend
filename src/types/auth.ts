@@ -6,6 +6,6 @@ export type LocalSession = {
   role: Role
   identity: string
   name: string
+  email?: string
   loggedAt: string
 }
-

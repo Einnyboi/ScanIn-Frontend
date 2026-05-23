@@ -9,6 +9,7 @@ const activeDemoTime = createActiveDemoTime()
 export const studentSchedules: CourseSchedule[] = [
   {
     id: 'software-development',
+    day: 'Senin',
     title: 'Software Development',
     time: activeDemoTime,
     room: 'Lab. Pemrograman 905',
@@ -18,6 +19,7 @@ export const studentSchedules: CourseSchedule[] = [
   },
   {
     id: 'pemrograman-web',
+    day: 'Senin',
     title: 'Pemrograman Web',
     time: '10:30 - 12:30',
     room: 'R-705',
@@ -27,6 +29,7 @@ export const studentSchedules: CourseSchedule[] = [
   },
   {
     id: 'kecerdasan-buatan',
+    day: 'Rabu',
     title: 'Kecerdasan Buatan',
     time: '13:00 - 15:00',
     room: 'R-805',
@@ -39,6 +42,7 @@ export const studentSchedules: CourseSchedule[] = [
 export const lecturerSchedules: CourseSchedule[] = [
   {
     id: 'software-development',
+    day: 'Senin',
     title: 'Software Development',
     time: activeDemoTime,
     room: 'Lab. Pemrograman 905',
@@ -48,6 +52,7 @@ export const lecturerSchedules: CourseSchedule[] = [
   },
   {
     id: 'pemrograman-web',
+    day: 'Senin',
     title: 'Pemrograman Web',
     time: '10:30 - 12:30',
     room: 'R-705',
@@ -57,6 +62,7 @@ export const lecturerSchedules: CourseSchedule[] = [
   },
   {
     id: 'kecerdasan-buatan',
+    day: 'Rabu',
     title: 'Kecerdasan Buatan',
     time: '13:00 - 15:00',
     room: 'R-805',
