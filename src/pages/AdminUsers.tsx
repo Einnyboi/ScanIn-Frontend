@@ -12,7 +12,7 @@ export default function AdminUsers() {
             name: "Naisya Yuen Ra'af",
             idNumber: "535240187",
             role: "student",
-            email: "naisya@student.untar.ac.id",
+            email: "naisya@stu.untar.ac.id",
             status: "active",
         },
         {
@@ -20,7 +20,7 @@ export default function AdminUsers() {
             name: "Ahmad Rizki",
             idNumber: "535240156",
             role: "student",
-            email: "ahmad@student.untar.ac.id",
+            email: "ahmad@stu.untar.ac.id",
             status: "active",
         },
         {

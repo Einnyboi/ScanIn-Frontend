@@ -1,6 +1,29 @@
 import type { CorrectionTicket } from '../types/attendance'
+import { apiRequest } from './api'
 
 const ticketKey = 'scanin-correction-tickets'
+export const ticketsChangedEvent = 'scanin:tickets-changed'
+
+const notifyTicketsChanged = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(ticketsChangedEvent))
+  }
+}
+
+const persistTickets = (
+  tickets: CorrectionTicket[],
+  shouldSyncBackend = true,
+) => {
+  window.localStorage.setItem(ticketKey, JSON.stringify(tickets))
+  notifyTicketsChanged()
+
+  if (shouldSyncBackend) {
+    void apiRequest<CorrectionTicket[]>('/tickets', {
+      method: 'PUT',
+      body: JSON.stringify(tickets),
+    }).catch(() => undefined)
+  }
+}
 
 export const loadStoredTickets = (): CorrectionTicket[] => {
   if (typeof window === 'undefined') {
@@ -26,7 +49,7 @@ export const loadCorrectionTickets = (defaultTickets: CorrectionTicket[]) => {
 
 export const saveCorrectionTicket = (ticket: CorrectionTicket) => {
   const storedTickets = loadStoredTickets()
-  window.localStorage.setItem(ticketKey, JSON.stringify([ticket, ...storedTickets]))
+  persistTickets([ticket, ...storedTickets])
 }
 
 export const updateStoredTicket = (updatedTicket: CorrectionTicket) => {
@@ -40,5 +63,24 @@ export const updateStoredTicket = (updatedTicket: CorrectionTicket) => {
       )
     : [updatedTicket, ...storedTickets]
 
-  window.localStorage.setItem(ticketKey, JSON.stringify(nextTickets))
+  persistTickets(nextTickets)
+}
+
+export const fetchTicketsFromBackend = async (
+  defaultTickets: CorrectionTicket[],
+) => {
+  try {
+    const tickets = await apiRequest<CorrectionTicket[]>('/tickets')
+
+    if (!tickets.length) {
+      const fallbackTickets = loadCorrectionTickets(defaultTickets)
+      persistTickets(fallbackTickets)
+      return fallbackTickets
+    }
+
+    persistTickets(tickets, false)
+    return loadCorrectionTickets(defaultTickets)
+  } catch {
+    return null
+  }
 }

@@ -51,7 +51,7 @@ const fallbackRecords: AdminAttendanceRecord[] = [
   },
 ]
 
-export function AdminAttendance() {
+export function AdminAttendance({ showHeader = true }: { showHeader?: boolean } = {}) {
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedCourse, setSelectedCourse] = useState('all')
   const [query, setQuery] = useState('')
@@ -149,18 +149,20 @@ export function AdminAttendance() {
 
   return (
     <section className="space-y-5">
-      <div>
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
-          Admin Presensi
-        </p>
-        <h2 className="mt-1 text-2xl font-black text-slate-950">
-          Data Presensi
-        </h2>
-        <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
-          Data ini menggabungkan hasil scan QR, input manual pengajar, dan contoh
-          riwayat lokal.
-        </p>
-      </div>
+      {showHeader ? (
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
+            Admin Presensi
+          </p>
+          <h2 className="mt-1 text-2xl font-black text-slate-950">
+            Data Presensi
+          </h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+            Data ini menggabungkan hasil scan QR, input manual pengajar, dan contoh
+            riwayat lokal.
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-4">
         <AdminMiniStat label="Total" value={`${filteredRecords.length}`} />

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { DashboardShell } from '../components/dashboard/DashboardShell'
 import { StatCard } from '../components/dashboard/StatCard'
-import { correctionTickets, lecturerSchedules } from '../data/mockAttendance'
+import { correctionTickets } from '../data/mockAttendance'
 import {
   type StatisticsMode,
   StatisticsPage,
@@ -15,10 +15,15 @@ import type {
 } from '../types/attendance'
 import type { LocalSession } from '../types/auth'
 import {
+  fetchScanRecordsFromBackend,
   loadStoredScanRecords,
+  scanRecordsChangedEvent,
   saveStoredScanRecord,
 } from '../utils/attendanceStorage'
-import { saveTicketNotification } from '../utils/notifications'
+import {
+  saveAttendanceNotification,
+  saveTicketNotification,
+} from '../utils/notifications'
 import { isQrExpired, loadActiveQrPayload } from '../utils/qr'
 import {
   getRuntimeLabel,
@@ -26,7 +31,17 @@ import {
   isSessionWindowOpen,
   type RuntimeStatus,
 } from '../utils/schedule'
-import { loadCorrectionTickets, updateStoredTicket } from '../utils/tickets'
+import {
+  fetchSchedulesFromBackend,
+  loadSchedules,
+  scheduleChangedEvent,
+} from '../utils/schedules'
+import {
+  fetchTicketsFromBackend,
+  loadCorrectionTickets,
+  ticketsChangedEvent,
+  updateStoredTicket,
+} from '../utils/tickets'
 
 type LecturerDashboardProps = {
   session: LocalSession
@@ -40,8 +55,19 @@ type LecturerMetric =
     >
   | null
 
+type LocalScanResult = {
+  success: boolean
+  title: string
+  message: string
+  studentName?: string
+  studentId?: string
+}
+
 export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps) {
   const [now, setNow] = useState(() => new Date())
+  const [schedules, setSchedules] = useState<CourseSchedule[]>(() =>
+    loadSchedules(),
+  )
   const [sessionCourse, setSessionCourse] = useState<CourseSchedule | null>(null)
   const [scanRecords, setScanRecords] = useState<ScanRecord[]>(() =>
     loadStoredScanRecords(),
@@ -59,8 +85,61 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     return () => window.clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    const reloadScanRecords = () => setScanRecords(loadStoredScanRecords())
+
+    void fetchScanRecordsFromBackend().then((backendRecords) => {
+      if (backendRecords) {
+        setScanRecords(backendRecords)
+      }
+    })
+
+    window.addEventListener('storage', reloadScanRecords)
+    window.addEventListener(scanRecordsChangedEvent, reloadScanRecords)
+    return () => {
+      window.removeEventListener('storage', reloadScanRecords)
+      window.removeEventListener(scanRecordsChangedEvent, reloadScanRecords)
+    }
+  }, [])
+
+  useEffect(() => {
+    const reloadSchedules = () => setSchedules(loadSchedules())
+
+    void fetchSchedulesFromBackend().then((backendSchedules) => {
+      if (backendSchedules) {
+        setSchedules(backendSchedules)
+      }
+    })
+
+    window.addEventListener('storage', reloadSchedules)
+    window.addEventListener(scheduleChangedEvent, reloadSchedules)
+    return () => {
+      window.removeEventListener('storage', reloadSchedules)
+      window.removeEventListener(scheduleChangedEvent, reloadSchedules)
+    }
+  }, [])
+
+  useEffect(() => {
+    const reloadTickets = () => setTickets(loadCorrectionTickets(correctionTickets))
+
+    void fetchTicketsFromBackend(correctionTickets).then((backendTickets) => {
+      if (backendTickets) {
+        setTickets(backendTickets)
+      }
+    })
+
+    window.addEventListener('storage', reloadTickets)
+    window.addEventListener(ticketsChangedEvent, reloadTickets)
+    return () => {
+      window.removeEventListener('storage', reloadTickets)
+      window.removeEventListener(ticketsChangedEvent, reloadTickets)
+    }
+  }, [])
+
   const approvedTickets = tickets.filter((ticket) => ticket.status === 'Disetujui')
     .length
+  const pendingTickets = tickets.filter((ticket) => ticket.status === 'Menunggu')
+  const pendingTicketCount = pendingTickets.length
 
   const activeStudents = useMemo(
     () =>
@@ -83,12 +162,17 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     setScannerMessage(`Sesi ${course.title} aktif. Scanner siap membaca QR.`)
   }
 
-  const handleLocalScan = () => {
+  const handleLocalScan = (): LocalScanResult => {
     const payload = loadActiveQrPayload()
 
     if (!payload) {
-      setScannerMessage('Belum ada QR mahasiswa aktif di localStorage.')
-      return
+      const message = 'Belum ada QR mahasiswa aktif yang bisa dibaca.'
+      setScannerMessage(message)
+      return {
+        success: false,
+        title: 'QR belum ditemukan',
+        message,
+      }
     }
 
     if (!sessionCourse || payload.courseId !== sessionCourse.id) {
@@ -99,8 +183,15 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
         method: 'QR Code',
         status: 'Tidak Valid',
       })
-      setScannerMessage('QR tidak cocok dengan sesi kelas yang dibuka.')
-      return
+      const message = 'QR tidak cocok dengan sesi kelas yang dibuka.'
+      setScannerMessage(message)
+      return {
+        success: false,
+        title: 'QR tidak valid',
+        message,
+        studentName: payload.studentName,
+        studentId: payload.studentId,
+      }
     }
 
     if (isQrExpired(payload)) {
@@ -111,8 +202,34 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
         method: 'QR Code',
         status: 'Kedaluwarsa',
       })
-      setScannerMessage('QR sudah kedaluwarsa. Minta mahasiswa tampilkan QR baru.')
-      return
+      const message = 'QR sudah kedaluwarsa. Minta mahasiswa tampilkan QR baru.'
+      setScannerMessage(message)
+      return {
+        success: false,
+        title: 'QR kedaluwarsa',
+        message,
+        studentName: payload.studentName,
+        studentId: payload.studentId,
+      }
+    }
+
+    const alreadyRecorded = scanRecords.some(
+      (record) =>
+        record.studentId === payload.studentId &&
+        record.courseTitle === payload.courseTitle &&
+        (record.status === 'Terverifikasi' || record.status === 'Terlambat'),
+    )
+
+    if (alreadyRecorded) {
+      const message = `${payload.studentName} sudah tercatat hadir untuk sesi ini.`
+      setScannerMessage(message)
+      return {
+        success: true,
+        title: 'Presensi sudah tercatat',
+        message,
+        studentName: payload.studentName,
+        studentId: payload.studentId,
+      }
     }
 
     addScanRecord({
@@ -122,7 +239,16 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
       method: 'QR Code',
       status: 'Terverifikasi',
     })
-    setScannerMessage(`${payload.studentName} berhasil diverifikasi.`)
+    saveAttendanceNotification(payload.studentId, payload.courseTitle, 'Hadir')
+    const message = `${payload.studentName} (${payload.studentId}) berhasil diabsen hadir.`
+    setScannerMessage(message)
+    return {
+      success: true,
+      title: 'Presensi berhasil',
+      message,
+      studentName: payload.studentName,
+      studentId: payload.studentId,
+    }
   }
 
   const addScanRecord = (
@@ -160,6 +286,11 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
       method: 'Manual',
       status,
     })
+    saveAttendanceNotification(
+      student.studentId,
+      sessionCourse.title,
+      status === 'Terverifikasi' ? 'Hadir' : status,
+    )
     setScannerMessage(
       `${student.studentName} ditandai ${
         status === 'Terverifikasi' ? 'hadir' : status.toLowerCase()
@@ -194,6 +325,21 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     }
   }
 
+  const handleTicketNotificationClick = () => {
+    setScannerMessage(
+      pendingTicketCount
+        ? `${pendingTicketCount} tiket koreksi menunggu keputusan pengajar.`
+        : 'Belum ada permohonan koreksi baru.',
+    )
+
+    const ticketPanel = document.getElementById('lecturer-ticket-panel')
+
+    if (ticketPanel) {
+      ticketPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      ticketPanel.focus({ preventScroll: true })
+    }
+  }
+
   if (activeMetric) {
     return (
       <StatisticsPage
@@ -218,7 +364,13 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
   }
 
   return (
-    <DashboardShell session={session} onLogout={onLogout}>
+    <DashboardShell
+      notificationCount={pendingTicketCount}
+      notificationLabel="Tiket Baru"
+      onLogout={onLogout}
+      onNotificationClick={handleTicketNotificationClick}
+      session={session}
+    >
       <div className="space-y-6">
         <section className="grid gap-4 md:grid-cols-3">
           <StatCard
@@ -260,7 +412,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
             </div>
 
             <div className="mt-5 space-y-4">
-              {lecturerSchedules.map((course) => {
+              {schedules.map((course) => {
                 const status = getRuntimeStatus(course, now)
                 const canOpenSession = isSessionWindowOpen(course, now)
 
@@ -301,6 +453,11 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
                   </div>
                 )
               })}
+              {!schedules.length ? (
+                <p className="rounded-[8px] bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
+                  Belum ada jadwal dari admin.
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -363,58 +520,78 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
             </div>
           </div>
 
-          <div className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
-            <h2 className="text-2xl font-black text-slate-950">
-              Permohonan Koreksi Kehadiran
-            </h2>
+          <div
+            id="lecturer-ticket-panel"
+            tabIndex={-1}
+            className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6 outline-none focus:ring-4 focus:ring-[#5c3386]/12"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
+                  Antrian Tiket
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  Permohonan Koreksi Kehadiran
+                </h2>
+              </div>
+              <span className="inline-flex h-9 items-center rounded-full bg-[#5c3386]/8 px-3 text-xs font-black text-[#5c3386]">
+                {pendingTicketCount} menunggu
+              </span>
+            </div>
             <div className="mt-5 space-y-3">
-              {tickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="rounded-[8px] border border-slate-200 p-4"
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-lg font-black text-slate-950">
-                        {ticket.studentName}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-500">
-                        NIM: {ticket.studentId}
-                      </p>
-                      <p className="mt-3 text-sm font-semibold text-slate-600">
-                        <span className="font-black">Mata Kuliah:</span>{' '}
-                        {ticket.courseTitle}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-600">
-                        <span className="font-black">Tanggal:</span> {ticket.date}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-600">
-                        <span className="font-black">Alasan:</span>{' '}
-                        {ticket.reason}
-                      </p>
+              {pendingTickets.length ? (
+                pendingTickets.map((ticket) => (
+                  <div
+                    key={ticket.id}
+                    className="rounded-[8px] border border-slate-200 p-4"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-lg font-black text-slate-950">
+                          {ticket.studentName}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">
+                          NIM: {ticket.studentId}
+                        </p>
+                        <p className="mt-3 text-sm font-semibold text-slate-600">
+                          <span className="font-black">Mata Kuliah:</span>{' '}
+                          {ticket.courseTitle}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-600">
+                          <span className="font-black">Tanggal:</span> {ticket.date}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-600">
+                          <span className="font-black">Alasan:</span>{' '}
+                          {ticket.reason}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateTicket(ticket.id, 'Disetujui')}
+                          className="h-10 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
+                        >
+                          Setujui
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateTicket(ticket.id, 'Ditolak')}
+                          className="h-10 rounded-[8px] border border-[#7d2228] px-4 text-sm font-black text-[#7d2228] transition hover:bg-[#7d2228] hover:text-white"
+                        >
+                          Tolak
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateTicket(ticket.id, 'Disetujui')}
-                        className="h-10 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
-                      >
-                        Setujui
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateTicket(ticket.id, 'Ditolak')}
-                        className="h-10 rounded-[8px] border border-[#7d2228] px-4 text-sm font-black text-[#7d2228] transition hover:bg-[#7d2228] hover:text-white"
-                      >
-                        Tolak
-                      </button>
-                    </div>
+                    <p className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-[#9b6b07]">
+                      Menunggu keputusan
+                    </p>
                   </div>
-                  <p className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
-                    {ticket.status}
-                  </p>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-500">
+                  Belum ada permohonan koreksi baru.
+                </p>
+              )}
             </div>
           </div>
         </section>
