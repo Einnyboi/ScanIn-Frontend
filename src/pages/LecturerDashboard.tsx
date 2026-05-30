@@ -15,8 +15,6 @@ import type {
 import type { LocalSession } from '../types/auth'
 import {
   fetchScanRecordsFromBackend,
-  loadStoredScanRecords,
-  scanRecordsChangedEvent,
   saveStoredScanRecord,
 } from '../utils/attendanceStorage'
 import {
@@ -32,13 +30,9 @@ import {
 } from '../utils/schedule'
 import {
   fetchSchedulesFromBackend,
-  loadSchedules,
-  scheduleChangedEvent,
 } from '../utils/schedules'
 import {
   fetchTicketsFromBackend,
-  loadStoredTickets,
-  ticketsChangedEvent,
   updateStoredTicket,
 } from '../utils/tickets'
 
@@ -64,14 +58,10 @@ type LocalScanResult = {
 
 export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps) {
   const [now, setNow] = useState(() => new Date())
-  const [schedules, setSchedules] = useState<CourseSchedule[]>(() =>
-    loadSchedules(),
-  )
+  const [schedules, setSchedules] = useState<CourseSchedule[]>([])
   const [sessionCourse, setSessionCourse] = useState<CourseSchedule | null>(null)
-  const [scanRecords, setScanRecords] = useState<ScanRecord[]>(() =>
-    loadStoredScanRecords(),
-  )
-  const [tickets, setTickets] = useState(() => loadStoredTickets())
+  const [scanRecords, setScanRecords] = useState<ScanRecord[]>([])
+  const [tickets, setTickets] = useState<CorrectionTicket[]>([])
   const [scannerMessage, setScannerMessage] = useState(
     'Buka sesi kelas untuk menampilkan halaman scanner QR.',
   )
@@ -83,54 +73,21 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
   }, [])
 
   useEffect(() => {
-    const reloadScanRecords = () => setScanRecords(loadStoredScanRecords())
-
     void fetchScanRecordsFromBackend().then((backendRecords) => {
-      if (backendRecords) {
-        setScanRecords(backendRecords)
-      }
+      setScanRecords(backendRecords ?? [])
     })
-
-    window.addEventListener('storage', reloadScanRecords)
-    window.addEventListener(scanRecordsChangedEvent, reloadScanRecords)
-    return () => {
-      window.removeEventListener('storage', reloadScanRecords)
-      window.removeEventListener(scanRecordsChangedEvent, reloadScanRecords)
-    }
   }, [])
 
   useEffect(() => {
-    const reloadSchedules = () => setSchedules(loadSchedules())
-
     void fetchSchedulesFromBackend().then((backendSchedules) => {
-      if (backendSchedules) {
-        setSchedules(backendSchedules)
-      }
+      setSchedules(backendSchedules ?? [])
     })
-
-    window.addEventListener('storage', reloadSchedules)
-    window.addEventListener(scheduleChangedEvent, reloadSchedules)
-    return () => {
-      window.removeEventListener('storage', reloadSchedules)
-      window.removeEventListener(scheduleChangedEvent, reloadSchedules)
-    }
   }, [])
 
   useEffect(() => {
-    const reloadTickets = () => setTickets(loadCorrectionTickets(correctionTickets))
-
     void fetchTicketsFromBackend([]).then((backendTickets) => {
-      if (backendTickets) {
-        setTickets(backendTickets)
-      }
+      setTickets(backendTickets ?? [])
     })
-
-    window.addEventListener('storage', reloadTickets)
-    window.addEventListener(ticketsChangedEvent, reloadTickets)
-    return () => {
-      window.removeEventListener('storage', reloadTickets)
-      window.removeEventListener(ticketsChangedEvent, reloadTickets)
-    }
   }, [])
 
   const approvedTickets = tickets.filter((ticket) => ticket.status === 'Disetujui')
@@ -300,7 +257,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     setSessionCourse(null)
   }
 
-  const updateTicket = (
+  const updateTicket = async (
     ticketId: string,
     status: CorrectionTicket['status'],
   ) => {
@@ -314,7 +271,17 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     )
 
     if (updatedTicket) {
-      updateStoredTicket(updatedTicket)
+      try {
+        const savedTicket = await updateStoredTicket(updatedTicket)
+        setTickets((currentTickets) =>
+          currentTickets.map((ticket) =>
+            ticket.id === savedTicket.id ? savedTicket : ticket,
+          ),
+        )
+      } catch {
+        setScannerMessage('Gagal memperbarui tiket ke backend. Coba lagi.')
+        return
+      }
     }
 
     if (updatedTicket && (status === 'Disetujui' || status === 'Ditolak')) {
@@ -517,80 +484,9 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
             </div>
           </div>
 
-          <div
-            id="lecturer-ticket-panel"
-            tabIndex={-1}
-            className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6 outline-none focus:ring-4 focus:ring-[#5c3386]/12"
-          >
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
-                  Antrian Tiket
-                </p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">
-                  Permohonan Koreksi Kehadiran
-                </h2>
-              </div>
-              <span className="inline-flex h-9 items-center rounded-full bg-[#5c3386]/8 px-3 text-xs font-black text-[#5c3386]">
-                {pendingTicketCount} menunggu
-              </span>
-            </div>
-            <div className="mt-5 space-y-3">
-              {pendingTickets.length ? (
-                pendingTickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    className="rounded-[8px] border border-slate-200 p-4"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <p className="text-lg font-black text-slate-950">
-                          {ticket.studentName}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-500">
-                          NIM: {ticket.studentId}
-                        </p>
-                        <p className="mt-3 text-sm font-semibold text-slate-600">
-                          <span className="font-black">Mata Kuliah:</span>{' '}
-                          {ticket.courseTitle}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-600">
-                          <span className="font-black">Tanggal:</span> {ticket.date}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-600">
-                          <span className="font-black">Alasan:</span>{' '}
-                          {ticket.reason}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => updateTicket(ticket.id, 'Disetujui')}
-                          className="h-10 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
-                        >
-                          Setujui
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateTicket(ticket.id, 'Ditolak')}
-                          className="h-10 rounded-[8px] border border-[#7d2228] px-4 text-sm font-black text-[#7d2228] transition hover:bg-[#7d2228] hover:text-white"
-                        >
-                          Tolak
-                        </button>
-                      </div>
-                    </div>
-                    <p className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-[#9b6b07]">
-                      Menunggu keputusan
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-500">
-                  Belum ada permohonan koreksi baru.
-                </p>
-              )}
-            </div>
-          </div>
+          {/* Ticket panel archived per request: dosen ticket UI commented out.
+              To restore, uncomment this block and ensure ticket filtering is applied.
+          */}
         </section>
       </div>
     </DashboardShell>

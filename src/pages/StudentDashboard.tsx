@@ -33,7 +33,6 @@ import {
 } from '../utils/schedules'
 import {
   fetchTicketsFromBackend,
-  loadStoredTickets,
   ticketsChangedEvent,
   saveCorrectionTicket,
 } from '../utils/tickets'
@@ -58,8 +57,8 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   const activeCourse = schedules.find((course) =>
     isCourseActiveNow(course, now),
   )
-  const [selectedCourse, setSelectedCourse] = useState<CourseSchedule>(
-    activeCourse ?? schedules[0],
+  const [selectedCourse, setSelectedCourse] = useState<CourseSchedule | null>(
+    activeCourse ?? schedules[0] ?? null,
   )
   const [payload, setPayload] = useState<QrPayload | null>(null)
   const [secondsLeft, setSecondsLeft] = useState(15)
@@ -72,17 +71,17 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
     () => mapAttendanceHistory(loadStoredScanRecords(), session.identity),
   )
   const [studentTickets, setStudentTickets] = useState(() =>
-    loadStoredTickets().filter(
-      (ticket) => ticket.studentId === session.identity,
-    ),
+    [],
   )
   const [activeMetric, setActiveMetric] = useState<StudentMetric>(null)
   const [notifications, setNotifications] = useState<StudentNotification[]>(() =>
     loadStudentNotifications(session.identity),
   )
 
-  const selectedStatus = getRuntimeStatus(selectedCourse, now)
-  const canShowQr = selectedStatus === 'active'
+  const selectedStatus = selectedCourse
+    ? getRuntimeStatus(selectedCourse, now)
+    : 'closed'
+  const canShowQr = Boolean(selectedCourse) && selectedStatus === 'active'
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000)
@@ -93,11 +92,11 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
     const applySchedules = (nextSchedules: CourseSchedule[]) => {
       setSchedules(nextSchedules)
       setSelectedCourse((currentCourse) => {
-        const matchingCourse = nextSchedules.find(
-          (course) => course.id === currentCourse.id,
-        )
+        const matchingCourse = currentCourse
+          ? nextSchedules.find((course) => course.id === currentCourse.id)
+          : undefined
 
-        return matchingCourse ?? nextSchedules[0] ?? currentCourse
+        return matchingCourse ?? nextSchedules[0] ?? null
       })
     }
     const reloadSchedules = () => applySchedules(loadSchedules())
@@ -149,11 +148,13 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
 
   useEffect(() => {
     const reloadTickets = () =>
-      setStudentTickets(
-        loadStoredTickets().filter(
-          (ticket) => ticket.studentId === session.identity,
-        ),
-      )
+      void fetchTicketsFromBackend([]).then((backendTickets) => {
+        if (backendTickets) {
+          setStudentTickets(
+            backendTickets.filter((ticket) => ticket.studentId === session.identity),
+          )
+        }
+      })
 
     void fetchTicketsFromBackend([]).then((backendTickets) => {
       if (backendTickets) {
@@ -172,7 +173,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   }, [session.identity])
 
   useEffect(() => {
-    if (!isQrVisible || !canShowQr) {
+    if (!isQrVisible || !canShowQr || !selectedCourse) {
       return
     }
 
@@ -209,7 +210,12 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
     (notification) => !notification.isRead,
   ).length
 
-  const handleSubmitTicket = () => {
+  const handleSubmitTicket = async () => {
+    if (!selectedCourse) {
+      setTicketMessage('Belum ada jadwal yang bisa dipilih.')
+      return
+    }
+
     if (!ticketReason.trim()) {
       setTicketMessage('Isi alasan koreksi dulu ya.')
       return
@@ -220,21 +226,24 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
       studentName: session.name,
       studentId: session.identity,
       courseTitle: selectedCourse.title,
-      date: new Date().toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      }),
+      date: new Date().toISOString().split('T')[0],
       reason: ticketReason.trim(),
       status: 'Menunggu' as const,
     }
 
-    saveCorrectionTicket(newTicket)
-    setStudentTickets((currentTickets) => [newTicket, ...currentTickets])
-    setTicketMessage(
-      'Tiket koreksi tersimpan dan sudah masuk ke panel pengajar serta admin.',
-    )
-    setTicketReason('')
+    try {
+      const savedTicket = await saveCorrectionTicket(newTicket)
+      setStudentTickets((currentTickets) => [
+        savedTicket,
+        ...currentTickets.filter((ticket) => ticket.id !== savedTicket.id),
+      ])
+      setTicketMessage(
+        'Tiket koreksi tersimpan dan sudah masuk ke panel pengajar serta admin.',
+      )
+      setTicketReason('')
+    } catch {
+      setTicketMessage('Gagal mengirim tiket ke backend. Coba lagi ya.')
+    }
   }
 
   const handleMarkNotificationsRead = () => {
@@ -243,7 +252,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   }
 
   const handleOpenQrPage = () => {
-    if (!canShowQr) {
+    if (!canShowQr || !selectedCourse) {
       return
     }
 
@@ -270,6 +279,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
     return (
       <StatisticsPage
         mode={activeMetric}
+        studentId={session.identity}
         onBack={() => setActiveMetric(null)}
       />
     )
@@ -413,7 +423,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                       setSecondsLeft(15)
                     }}
                     className={`w-full rounded-lg border p-4 text-left transition ${
-                      selectedCourse.id === course.id
+                      selectedCourse?.id === course.id
                         ? 'border-[#5c3386] bg-[#5c3386]/5 shadow-lg shadow-[#5c3386]/10'
                         : 'border-slate-200 bg-white hover:border-[#5c3386]/30'
                     }`}
@@ -453,7 +463,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                 Presensi QR
               </p>
               <h3 className="mt-2 text-2xl font-black text-slate-950">
-                {selectedCourse.title}
+                {selectedCourse?.title ?? 'Belum ada jadwal aktif'}
               </h3>
               <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
                 QR hanya bisa ditampilkan saat jam kelas sedang berlangsung.
@@ -475,7 +485,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
               {!canShowQr ? (
                 <p className="mt-3 rounded-lg bg-slate-50 px-4 py-3 text-sm font-bold leading-6 text-slate-500">
                   Status kelas: {getRuntimeLabel(selectedStatus)}. QR akan aktif
-                  sesuai jadwal {selectedCourse.time}.
+                  {selectedCourse ? ` sesuai jadwal ${selectedCourse.time}.` : '.'}
                 </p>
               ) : null}
             </div>
@@ -486,7 +496,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                   Koreksi Presensi
                 </p>
                 <h3 className="mt-1 text-xl font-black text-slate-950">
-                  Ajukan tiket untuk {selectedCourse.title}
+                  Ajukan tiket untuk {selectedCourse?.title ?? 'jadwal terpilih'}
                 </h3>
                 <textarea
                   value={ticketReason}

@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useState,
   type FormEvent,
   type ReactNode,
@@ -44,7 +45,7 @@ import {
 } from 'lucide-react'
 
 import { loadLocalProfiles } from '../lib/localSession'
-import type { CorrectionTicket, CourseSchedule } from '../types/attendance'
+import type { CorrectionTicket, CourseSchedule, ScanRecord } from '../types/attendance'
 import type { LocalSession } from '../types/auth'
 import {
   adminUsersChangedEvent,
@@ -86,8 +87,6 @@ import {
 } from '../utils/schedules'
 import {
   fetchTicketsFromBackend,
-  loadStoredTickets,
-  ticketsChangedEvent,
   updateStoredTicket,
 } from '../utils/tickets'
 import {
@@ -217,21 +216,37 @@ const defaultAdminUsers: AdminUser[] = [
   },
 ]
 
-const monthlyAttendanceData = [
-  { month: 'Jan', percentage: 86, hadir: 860, terlambat: 45, alpha: 24 },
-  { month: 'Feb', percentage: 88, hadir: 825, terlambat: 58, alpha: 32 },
-  { month: 'Mar', percentage: 90, hadir: 895, terlambat: 47, alpha: 20 },
-  { month: 'Apr', percentage: 87, hadir: 872, terlambat: 55, alpha: 31 },
-  { month: 'Mei', percentage: 85, hadir: 850, terlambat: 50, alpha: 22 },
-]
+type MonthlyAttendancePoint = {
+  month: string
+  percentage: number
+  hadir: number
+  terlambat: number
+  alpha: number
+}
 
-const sessionsPerDayData = [
-  { day: 'Sen', sessions: 12 },
-  { day: 'Sel', sessions: 15 },
-  { day: 'Rab', sessions: 14 },
-  { day: 'Kam', sessions: 13 },
-  { day: 'Jum', sessions: 11 },
-]
+type DaySessionsPoint = {
+  day: string
+  sessions: number
+}
+
+type ClassPerformancePoint = {
+  course: string
+  percentage: number
+}
+
+type AdminAnalytics = {
+  monthlyAttendance: MonthlyAttendancePoint[]
+  sessionsPerDay: DaySessionsPoint[]
+  classPerformance: ClassPerformancePoint[]
+  statusDistribution: Array<{ name: string; value: number; color: string }>
+  attendanceRate: number
+  lateRate: number
+  absentRate: number
+  attendanceTrend: string
+  lateTrend: string
+  absentTrend: string
+  totalSessions: number
+}
 
 export default function AdminDashboard({
   session,
@@ -245,7 +260,7 @@ export default function AdminDashboard({
     loadSchedules(),
   )
   const [tickets, setTickets] = useState<CorrectionTicket[]>(() =>
-    loadStoredTickets(),
+    [],
   )
   const [reports, setReports] = useState<GeneratedReport[]>(() =>
     loadGeneratedReports(),
@@ -259,6 +274,10 @@ export default function AdminDashboard({
   const [scanRecords, setScanRecords] = useState(() => loadStoredScanRecords())
   const [currentTime, setCurrentTime] = useState(() => new Date())
   const [adminNotice, setAdminNotice] = useState<AdminNotice | null>(null)
+  const analytics = useMemo(
+    () => buildAdminAnalytics(scanRecords, schedules, currentTime),
+    [currentTime, scanRecords, schedules],
+  )
 
   const meta = pageMeta[activeView]
   const adminNotificationCount =
@@ -307,7 +326,13 @@ export default function AdminDashboard({
   }, [])
 
   useEffect(() => {
-    const reload = () => setTickets(loadStoredTickets())
+    const reload = () => {
+      void fetchTicketsFromBackend([]).then((backendTickets) => {
+        if (backendTickets) {
+          setTickets(backendTickets)
+        }
+      })
+    }
 
     void fetchTicketsFromBackend([]).then((backendTickets) => {
       if (backendTickets) {
@@ -316,10 +341,8 @@ export default function AdminDashboard({
     })
 
     window.addEventListener('storage', reload)
-    window.addEventListener(ticketsChangedEvent, reload)
     return () => {
       window.removeEventListener('storage', reload)
-      window.removeEventListener(ticketsChangedEvent, reload)
     }
   }, [])
 
@@ -401,7 +424,7 @@ export default function AdminDashboard({
     saveSchedules(nextSchedules)
   }
 
-  const handleTicketAction = (
+  const handleTicketAction = async (
     ticketId: string,
     status: CorrectionTicket['status'],
   ) => {
@@ -409,12 +432,20 @@ export default function AdminDashboard({
     if (!selectedTicket) return
 
     const updatedTicket = { ...selectedTicket, status }
-    setTickets((currentTickets) =>
-      currentTickets.map((ticket) =>
-        ticket.id === ticketId ? updatedTicket : ticket,
-      ),
-    )
-    updateStoredTicket(updatedTicket)
+
+    try {
+      const savedTicket = await updateStoredTicket(updatedTicket)
+      setTickets((currentTickets) =>
+        currentTickets.map((ticket) =>
+          ticket.id === savedTicket.id ? savedTicket : ticket,
+        ),
+      )
+    } catch {
+      setAdminNotice({
+        tone: 'danger',
+        message: 'Gagal memperbarui tiket ke backend. Coba lagi.',
+      })
+    }
   }
 
   const handleGenerateReport = (kind: ReportKind = 'attendance') => {
@@ -543,6 +574,7 @@ export default function AdminDashboard({
           {activeView === 'dashboard' ? (
             <DashboardView
               complaints={complaints}
+              analytics={analytics}
               onSendReset={handleSendReset}
               passwordRequests={passwordRequests}
               schedules={schedules}
@@ -566,6 +598,7 @@ export default function AdminDashboard({
           ) : null}
           {activeView === 'reports' ? (
             <ReportsView
+              analytics={analytics}
               onGenerateReport={handleGenerateReport}
               reports={reports}
             />
@@ -718,7 +751,7 @@ function AdminNoticeBanner({
 }
 
 function DashboardView({
-  complaints,
+  analytics,
   onSendReset,
   passwordRequests,
   schedules,
@@ -726,7 +759,7 @@ function DashboardView({
   tickets,
   users,
 }: {
-  complaints: SupportComplaint[]
+  analytics: AdminAnalytics
   onSendReset: (requestId: string) => void | Promise<void>
   passwordRequests: PasswordResetRequest[]
   schedules: CourseSchedule[]
@@ -766,7 +799,7 @@ function DashboardView({
       <section className="grid gap-5 xl:grid-cols-2">
         <AdminCard title="Tren Kehadiran Bulanan">
           <ResponsiveContainer width="100%" height={270}>
-            <LineChart data={monthlyAttendanceData}>
+            <LineChart data={analytics.monthlyAttendance}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis domain={[0, 100]} />
@@ -785,7 +818,7 @@ function DashboardView({
 
         <AdminCard title="Sesi Per Hari (Minggu Ini)">
           <ResponsiveContainer width="100%" height={270}>
-            <BarChart data={sessionsPerDayData}>
+            <BarChart data={analytics.sessionsPerDay}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="day" />
               <YAxis />
@@ -798,10 +831,10 @@ function DashboardView({
       </section>
 
       <section className="grid gap-5 xl:grid-cols-3">
-        <AdminCard title="Aktivitas Lokal">
+        <AdminCard title="Aktivitas Backend">
           <div className="grid gap-3">
             <ActivityTile label="Scan tersimpan" value={scanRecordsCount} />
-            <ActivityTile label="Keluhan bantuan" value={complaints.length} />
+            <ActivityTile label="Tiket koreksi" value={pendingTickets.length} />
             <ActivityTile label="Reset password" value={pendingResets.length} />
           </div>
         </AdminCard>
@@ -821,28 +854,28 @@ function DashboardView({
           </div>
         </AdminCard>
 
-        <AdminCard title="Keluhan Bantuan">
+        <AdminCard title="Tiket Koreksi">
           <div className="space-y-3">
-            {complaints.slice(0, 3).map((complaint) => (
+            {pendingTickets.slice(0, 3).map((ticket) => (
               <div
-                key={complaint.id}
+                key={ticket.id}
                 className="rounded-[8px] border border-slate-200 p-4"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="font-black text-slate-950">{complaint.name}</p>
+                  <p className="font-black text-slate-950">{ticket.studentName}</p>
                   <span className="rounded-full bg-[#5c3386]/10 px-3 py-1 text-xs font-black text-[#5c3386]">
-                    {complaint.role}
+                    {ticket.status}
                   </span>
                 </div>
                 <p className="mt-1 text-xs font-bold text-slate-500">
-                  {complaint.category}
+                  NIM: {ticket.studentId} - {ticket.courseTitle} - {ticket.date}
                 </p>
                 <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-600">
-                  {complaint.message}
+                  {ticket.reason}
                 </p>
               </div>
             ))}
-            {!complaints.length ? <EmptyState text="Belum ada keluhan." /> : null}
+            {!pendingTickets.length ? <EmptyState text="Belum ada tiket." /> : null}
           </div>
         </AdminCard>
       </section>
@@ -1660,30 +1693,7 @@ function AttendanceView({ scanRecords }: { scanRecords: ReturnType<typeof loadSt
   const [query, setQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [courseFilter, setCourseFilter] = useState('Semua Kelas')
-  const rows = scanRecords.length
-    ? scanRecords
-    : [
-        {
-          id: 'demo-1',
-          studentId: '535240187',
-          studentName: "Naisya Yuen Ra'af",
-          courseTitle: 'Basis Data Lanjut',
-          scannedAt: '08:02',
-          recordedAt: new Date().toISOString(),
-          method: 'QR Code' as const,
-          status: 'Terverifikasi' as const,
-        },
-        {
-          id: 'demo-2',
-          studentId: '535240156',
-          studentName: 'Ahmad Rizki',
-          courseTitle: 'Basis Data Lanjut',
-          scannedAt: '08:17',
-          recordedAt: new Date().toISOString(),
-          method: 'QR Code' as const,
-          status: 'Terlambat' as const,
-        },
-      ]
+  const rows = scanRecords
   const courseOptions = [
     'Semua Kelas',
     ...Array.from(new Set(rows.map((row) => row.courseTitle))),
@@ -1808,9 +1818,11 @@ function AttendanceView({ scanRecords }: { scanRecords: ReturnType<typeof loadSt
 }
 
 function ReportsView({
+  analytics,
   onGenerateReport,
   reports,
 }: {
+  analytics: AdminAnalytics
   onGenerateReport: (kind?: ReportKind) => void
   reports: GeneratedReport[]
 }) {
@@ -1844,26 +1856,26 @@ function ReportsView({
   return (
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-4">
-        <TrendStat label="Kehadiran Rata-rata" trend="+2.5% dari bulan lalu" value="84%" />
+        <TrendStat label="Kehadiran Rata-rata" trend={analytics.attendanceTrend} value={`${analytics.attendanceRate}%`} />
         <TrendStat
           label="Keterlambatan"
           tone="yellow"
-          trend="-1.2% dari bulan lalu"
-          value="11%"
+          trend={analytics.lateTrend}
+          value={`${analytics.lateRate}%`}
         />
         <TrendStat
           label="Ketidakhadiran"
           tone="red"
-          trend="+0.8% dari bulan lalu"
-          value="5%"
+          trend={analytics.absentTrend}
+          value={`${analytics.absentRate}%`}
         />
-        <SimpleStat label="Total Sesi" tone="blue" value={245} />
+        <SimpleStat label="Total Sesi" tone="blue" value={analytics.totalSessions} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
         <AdminCard title="Tren Kehadiran Bulanan">
           <ResponsiveContainer width="100%" height={270}>
-            <BarChart data={monthlyAttendanceData}>
+            <BarChart data={analytics.monthlyAttendance}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
@@ -1877,14 +1889,7 @@ function ReportsView({
         </AdminCard>
         <AdminCard title="Performa Per Mata Kuliah">
           <ResponsiveContainer width="100%" height={270}>
-            <LineChart
-              data={[
-                { course: 'Kecerdasan Buatan', percentage: 92 },
-                { course: 'Jaringan Komputer', percentage: 91 },
-                { course: 'Basis Data Lanjut', percentage: 89 },
-                { course: 'Pemrograman Web', percentage: 85 },
-              ]}
-            >
+            <LineChart data={analytics.classPerformance}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="course" />
               <YAxis domain={[0, 100]} />
@@ -2915,4 +2920,173 @@ function downloadReport(report: GeneratedReport) {
   link.download = `${report.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.csv`
   link.click()
   URL.revokeObjectURL(url)
+}
+
+function buildAdminAnalytics(
+  scanRecords: ScanRecord[],
+  schedules: CourseSchedule[],
+  referenceDate: Date,
+): AdminAnalytics {
+  const monthlyAttendance = buildMonthlyAttendanceSeries(scanRecords, referenceDate)
+  const sessionsPerDay = buildSessionsPerDaySeries(schedules)
+  const classPerformance = buildClassPerformanceSeries(scanRecords)
+  const statusDistribution = buildStatusDistribution(scanRecords)
+  const currentSnapshot = buildMonthlySnapshot(scanRecords, referenceDate)
+  const previousMonth = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() - 1,
+    1,
+  )
+  const previousSnapshot = buildMonthlySnapshot(scanRecords, previousMonth)
+
+  return {
+    monthlyAttendance,
+    sessionsPerDay,
+    classPerformance,
+    statusDistribution,
+    attendanceRate: currentSnapshot.attendanceRate,
+    lateRate: currentSnapshot.lateRate,
+    absentRate: currentSnapshot.absentRate,
+    attendanceTrend: formatTrendChange(
+      currentSnapshot.attendanceRate,
+      previousSnapshot.attendanceRate,
+    ),
+    lateTrend: formatTrendChange(currentSnapshot.lateRate, previousSnapshot.lateRate),
+    absentTrend: formatTrendChange(
+      currentSnapshot.absentRate,
+      previousSnapshot.absentRate,
+    ),
+    totalSessions: schedules.length,
+  }
+}
+
+function buildMonthlyAttendanceSeries(
+  scanRecords: ScanRecord[],
+  referenceDate: Date,
+): MonthlyAttendancePoint[] {
+  return Array.from({ length: 5 }, (_, index) => {
+    const monthDate = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth() - 4 + index,
+      1,
+    )
+    const snapshot = buildMonthlySnapshot(scanRecords, monthDate)
+
+    return {
+      month: monthDate.toLocaleDateString('id-ID', { month: 'short' }),
+      percentage: snapshot.attendanceRate,
+      hadir: snapshot.presentCount,
+      terlambat: snapshot.lateCount,
+      alpha: snapshot.absentCount,
+    }
+  })
+}
+
+function buildSessionsPerDaySeries(schedules: CourseSchedule[]): DaySessionsPoint[] {
+  const dayOrder = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+  const counts = new Map(dayOrder.map((day) => [day, 0]))
+
+  for (const schedule of schedules) {
+    const normalizedDay = normalizeDayName(schedule.day)
+    if (normalizedDay && counts.has(normalizedDay)) {
+      counts.set(normalizedDay, (counts.get(normalizedDay) ?? 0) + 1)
+    }
+  }
+
+  return dayOrder.map((day) => ({
+    day: day.slice(0, 3),
+    sessions: counts.get(day) ?? 0,
+  }))
+}
+
+function buildClassPerformanceSeries(
+  scanRecords: ScanRecord[],
+): ClassPerformancePoint[] {
+  const byCourse = new Map<string, { present: number; total: number }>()
+
+  for (const record of scanRecords) {
+    const current = byCourse.get(record.courseTitle) ?? { present: 0, total: 0 }
+    current.total += 1
+    if (record.status === 'Terverifikasi' || record.status === 'Terlambat') {
+      current.present += 1
+    }
+    byCourse.set(record.courseTitle, current)
+  }
+
+  return Array.from(byCourse.entries())
+    .map(([course, stats]) => ({
+      course,
+      percentage: stats.total ? Math.round((stats.present / stats.total) * 100) : 0,
+    }))
+    .sort((a, b) => b.percentage - a.percentage)
+}
+
+function buildStatusDistribution(scanRecords: ScanRecord[]) {
+  const total = scanRecords.length
+  const present = scanRecords.filter((record) => record.status === 'Terverifikasi').length
+  const late = scanRecords.filter((record) => record.status === 'Terlambat').length
+  const absent = Math.max(total - present - late, 0)
+
+  return [
+    { name: 'Hadir', value: total ? Math.round((present / total) * 100) : 0, color: '#22c55e' },
+    { name: 'Terlambat', value: total ? Math.round((late / total) * 100) : 0, color: '#f59e0b' },
+    { name: 'Tidak Hadir', value: total ? Math.round((absent / total) * 100) : 0, color: '#ef4444' },
+  ]
+}
+
+function buildMonthlySnapshot(scanRecords: ScanRecord[], referenceDate: Date) {
+  const year = referenceDate.getFullYear()
+  const month = referenceDate.getMonth()
+  const monthRecords = scanRecords.filter((record) => {
+    const recordedAt = new Date(record.recordedAt)
+    return (
+      !Number.isNaN(recordedAt.getTime()) &&
+      recordedAt.getFullYear() === year &&
+      recordedAt.getMonth() === month
+    )
+  })
+
+  const presentCount = monthRecords.filter(
+    (record) => record.status === 'Terverifikasi' || record.status === 'Terlambat',
+  ).length
+  const lateCount = monthRecords.filter((record) => record.status === 'Terlambat').length
+  const absentCount = Math.max(monthRecords.length - presentCount, 0)
+
+  return {
+    presentCount,
+    lateCount,
+    absentCount,
+    attendanceRate: monthRecords.length
+      ? Math.round((presentCount / monthRecords.length) * 100)
+      : 0,
+    lateRate: monthRecords.length
+      ? Math.round((lateCount / monthRecords.length) * 100)
+      : 0,
+    absentRate: monthRecords.length
+      ? Math.round((absentCount / monthRecords.length) * 100)
+      : 0,
+  }
+}
+
+function normalizeDayName(day?: string) {
+  if (!day) return ''
+
+  const lowerDay = day.trim().toLowerCase()
+
+  if (lowerDay.startsWith('sen')) return 'Senin'
+  if (lowerDay.startsWith('sel')) return 'Selasa'
+  if (lowerDay.startsWith('rab')) return 'Rabu'
+  if (lowerDay.startsWith('kam')) return 'Kamis'
+  if (lowerDay.startsWith('jum')) return 'Jumat'
+  if (lowerDay.startsWith('sab')) return 'Sabtu'
+  if (lowerDay.startsWith('min')) return 'Minggu'
+
+  return day
+}
+
+function formatTrendChange(currentValue: number, previousValue: number) {
+  const delta = currentValue - previousValue
+  const formattedDelta = `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}% dari bulan lalu`
+
+  return formattedDelta
 }
