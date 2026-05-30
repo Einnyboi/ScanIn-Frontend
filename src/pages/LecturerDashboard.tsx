@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { DashboardShell } from '../components/dashboard/DashboardShell'
 import { StatCard } from '../components/dashboard/StatCard'
-import { correctionTickets } from '../data/mockAttendance'
 import {
   type StatisticsMode,
   StatisticsPage,
@@ -38,7 +37,7 @@ import {
 } from '../utils/schedules'
 import {
   fetchTicketsFromBackend,
-  loadCorrectionTickets,
+  loadStoredTickets,
   ticketsChangedEvent,
   updateStoredTicket,
 } from '../utils/tickets'
@@ -72,9 +71,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
   const [scanRecords, setScanRecords] = useState<ScanRecord[]>(() =>
     loadStoredScanRecords(),
   )
-  const [tickets, setTickets] = useState(() =>
-    loadCorrectionTickets(correctionTickets),
-  )
+  const [tickets, setTickets] = useState(() => loadStoredTickets())
   const [scannerMessage, setScannerMessage] = useState(
     'Buka sesi kelas untuk menampilkan halaman scanner QR.',
   )
@@ -122,7 +119,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
   useEffect(() => {
     const reloadTickets = () => setTickets(loadCorrectionTickets(correctionTickets))
 
-    void fetchTicketsFromBackend(correctionTickets).then((backendTickets) => {
+    void fetchTicketsFromBackend([]).then((backendTickets) => {
       if (backendTickets) {
         setTickets(backendTickets)
       }

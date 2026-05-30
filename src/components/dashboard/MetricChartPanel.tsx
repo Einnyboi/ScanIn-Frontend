@@ -28,7 +28,7 @@ export function MetricChartPanel({
   const maxValue = Math.max(...items.map((item) => item.value), 1)
 
   return (
-    <section className="metric-panel rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
+    <section className="metric-panel rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
@@ -42,7 +42,7 @@ export function MetricChartPanel({
         <button
           type="button"
           onClick={onClose}
-          className="flex h-9 items-center justify-center rounded-[8px] border border-slate-200 px-3 text-sm font-black text-slate-500 transition hover:border-[#7d2228]/40 hover:text-[#7d2228]"
+          className="flex h-9 items-center justify-center rounded-lg border border-slate-200 px-3 text-sm font-black text-slate-500 transition hover:border-[#7d2228]/40 hover:text-[#7d2228]"
         >
           Tutup
         </button>

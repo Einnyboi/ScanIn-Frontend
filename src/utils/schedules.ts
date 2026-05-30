@@ -1,4 +1,3 @@
-import { lecturerSchedules } from '../data/mockAttendance'
 import type { CourseSchedule } from '../types/attendance'
 import { apiRequest } from './api'
 
@@ -6,7 +5,7 @@ const scheduleKey = 'scanin-admin-schedules'
 export const scheduleChangedEvent = 'scanin:schedules-changed'
 
 export const loadSchedules = (
-  fallbackSchedules: CourseSchedule[] = lecturerSchedules,
+  fallbackSchedules: CourseSchedule[] = [],
 ) => {
   if (typeof window === 'undefined') {
     return fallbackSchedules

@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { attendanceHistory } from '../data/mockAttendance'
-import { loadStoredScanRecords } from '../utils/attendanceStorage'
+import {
+  fetchScanRecordsFromBackend,
+  loadStoredScanRecords,
+  scanRecordsChangedEvent,
+} from '../utils/attendanceStorage'
 
 type AdminAttendanceRecord = {
   id: string
@@ -15,84 +18,30 @@ type AdminAttendanceRecord = {
   method: 'QR Code' | 'Manual' | '-'
 }
 
-const fallbackRecords: AdminAttendanceRecord[] = [
-  {
-    id: 'admin-demo-1',
-    student: "Naisya Yuen Ra'af",
-    nim: '535240187',
-    course: 'Software Development',
-    date: '20 Mei 2026',
-    isoDate: '2026-05-20',
-    time: '08:02',
-    status: 'Hadir',
-    method: 'QR Code',
-  },
-  {
-    id: 'admin-demo-2',
-    student: 'Ahmad Rizki',
-    nim: '535240156',
-    course: 'Software Development',
-    date: '20 Mei 2026',
-    isoDate: '2026-05-20',
-    time: '08:17',
-    status: 'Terlambat',
-    method: 'QR Code',
-  },
-  {
-    id: 'admin-demo-3',
-    student: 'Budi Santoso',
-    nim: '535240132',
-    course: 'Kecerdasan Buatan',
-    date: '20 Mei 2026',
-    isoDate: '2026-05-20',
-    time: '-',
-    status: 'Tidak Hadir',
-    method: '-',
-  },
-]
-
 export function AdminAttendance({ showHeader = true }: { showHeader?: boolean } = {}) {
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedCourse, setSelectedCourse] = useState('all')
   const [query, setQuery] = useState('')
   const [exportMessage, setExportMessage] = useState('')
+  const [records, setRecords] = useState<AdminAttendanceRecord[]>(() =>
+    mapScanRecords(loadStoredScanRecords()),
+  )
 
-  const records = useMemo(() => {
-    const storedRecords = loadStoredScanRecords().map((record) => {
-      const recordedAt = record.recordedAt ? new Date(record.recordedAt) : new Date()
-      return {
-        id: record.id,
-        student: record.studentName,
-        nim: record.studentId,
-        course: record.courseTitle,
-        date: recordedAt.toLocaleDateString('id-ID', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        }),
-        isoDate: recordedAt.toISOString().slice(0, 10),
-        time: record.scannedAt.slice(0, 5),
-        status: mapScanStatus(record.status),
-        method: record.method ?? 'QR Code',
+  useEffect(() => {
+    const reload = () => setRecords(mapScanRecords(loadStoredScanRecords()))
+
+    void fetchScanRecordsFromBackend().then((backendRecords) => {
+      if (backendRecords) {
+        setRecords(mapScanRecords(backendRecords))
       }
     })
 
-    const historyRecords = attendanceHistory.map((record) => ({
-      id: `history-${record.id}`,
-      student: '-',
-      nim: '-',
-      course: record.courseTitle,
-      date: record.date,
-      isoDate: '',
-      time: record.time,
-      status:
-        record.status === 'Izin'
-          ? ('Tidak Hadir' as const)
-          : (record.status as 'Hadir' | 'Terlambat'),
-      method: 'QR Code' as const,
-    }))
-
-    return [...storedRecords, ...fallbackRecords, ...historyRecords]
+    window.addEventListener('storage', reload)
+    window.addEventListener(scanRecordsChangedEvent, reload)
+    return () => {
+      window.removeEventListener('storage', reload)
+      window.removeEventListener(scanRecordsChangedEvent, reload)
+    }
   }, [])
 
   const courses = useMemo(
@@ -171,7 +120,7 @@ export function AdminAttendance({ showHeader = true }: { showHeader?: boolean } 
         <AdminMiniStat label="Tidak Hadir" value={`${absentCount}`} tone="red" />
       </div>
 
-      <div className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
+      <div className="rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
         <div className="grid gap-3 lg:grid-cols-[1fr_180px_220px_auto]">
           <label className="block">
             <span className="text-sm font-black text-slate-600">Cari</span>
@@ -179,7 +128,7 @@ export function AdminAttendance({ showHeader = true }: { showHeader?: boolean } 
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Nama, NIM, atau mata kuliah"
-              className="mt-2 h-11 w-full rounded-[8px] border border-slate-200 px-3 text-sm font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+              className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
             />
           </label>
           <label className="block">
@@ -188,7 +137,7 @@ export function AdminAttendance({ showHeader = true }: { showHeader?: boolean } 
               type="date"
               value={selectedDate}
               onChange={(event) => setSelectedDate(event.target.value)}
-              className="mt-2 h-11 w-full rounded-[8px] border border-slate-200 px-3 text-sm font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+              className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
             />
           </label>
           <label className="block">
@@ -196,7 +145,7 @@ export function AdminAttendance({ showHeader = true }: { showHeader?: boolean } 
             <select
               value={selectedCourse}
               onChange={(event) => setSelectedCourse(event.target.value)}
-              className="mt-2 h-11 w-full rounded-[8px] border border-slate-200 px-3 text-sm font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+              className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
             >
               {courses.map((course) => (
                 <option key={course} value={course}>
@@ -208,21 +157,21 @@ export function AdminAttendance({ showHeader = true }: { showHeader?: boolean } 
           <button
             type="button"
             onClick={handleExport}
-            className="flex h-11 self-end items-center justify-center rounded-[8px] bg-[#5c3386] px-5 text-sm font-black text-white transition hover:bg-[#4f2b73]"
+            className="flex h-11 self-end items-center justify-center rounded-lg bg-[#5c3386] px-5 text-sm font-black text-white transition hover:bg-[#4f2b73]"
           >
             Export CSV
           </button>
         </div>
         {exportMessage ? (
-          <p className="mt-3 rounded-[8px] bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+          <p className="mt-3 rounded-lg bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
             {exportMessage}
           </p>
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-[8px] border border-white bg-white shadow-lg shadow-slate-900/6">
+      <div className="overflow-hidden rounded-lg border border-white bg-white shadow-lg shadow-slate-900/6">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse text-left">
+          <table className="w-full min-w-225 border-collapse text-left">
             <thead className="bg-slate-50">
               <tr>
                 {[
@@ -277,6 +226,27 @@ export function AdminAttendance({ showHeader = true }: { showHeader?: boolean } 
   )
 }
 
+function mapScanRecords(records: ReturnType<typeof loadStoredScanRecords>) {
+  return records.map((record) => {
+    const recordedAt = record.recordedAt ? new Date(record.recordedAt) : new Date()
+    return {
+      id: record.id,
+      student: record.studentName,
+      nim: record.studentId,
+      course: record.courseTitle,
+      date: recordedAt.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
+      isoDate: recordedAt.toISOString().slice(0, 10),
+      time: record.scannedAt.slice(0, 5),
+      status: mapScanStatus(record.status),
+      method: record.method ?? 'QR Code',
+    }
+  })
+}
+
 function AdminMiniStat({
   label,
   value,
@@ -296,7 +266,7 @@ function AdminMiniStat({
           : 'text-slate-950'
 
   return (
-    <div className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
+    <div className="rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
       <p className="text-sm font-bold text-slate-500">{label}</p>
       <p className={`mt-2 text-3xl font-black ${color}`}>{value}</p>
     </div>

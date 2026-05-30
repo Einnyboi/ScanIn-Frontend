@@ -65,7 +65,7 @@ export function SupportPanel({ session, isOpen, onClose }: SupportPanelProps) {
 
   return (
     <div className="fixed inset-0 z-40 bg-slate-950/35 px-4 py-6 backdrop-blur-sm">
-      <div className="support-panel ml-auto flex h-full max-w-md flex-col rounded-[8px] bg-white shadow-2xl shadow-slate-950/20">
+      <div className="support-panel ml-auto flex h-full max-w-md flex-col rounded-lg bg-white shadow-2xl shadow-slate-950/20">
         <div className="border-b border-slate-200 p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -79,7 +79,7 @@ export function SupportPanel({ session, isOpen, onClose }: SupportPanelProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-[8px] text-slate-500 transition hover:bg-slate-100 hover:text-[#7d2228]"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#7d2228]"
               aria-label="Tutup bantuan"
             >
               x
@@ -88,7 +88,7 @@ export function SupportPanel({ session, isOpen, onClose }: SupportPanelProps) {
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
-          <div className="rounded-[8px] border border-[#5c3386]/12 bg-[#5c3386]/5 p-4">
+          <div className="rounded-lg border border-[#5c3386]/12 bg-[#5c3386]/5 p-4">
             <p className="text-sm leading-6 text-slate-600">
               Pilih kategori masalah sesuai akses {role.label.toLowerCase()},
               isi detailnya, lalu kirim. Admin bisa melihat keluhan ini dari
@@ -110,7 +110,7 @@ export function SupportPanel({ session, isOpen, onClose }: SupportPanelProps) {
                   setSelectedCategory(item)
                   setStatusMessage('')
                 }}
-                className={`rounded-[8px] border px-4 py-3 text-left text-sm font-black transition ${
+                className={`rounded-lg border px-4 py-3 text-left text-sm font-black transition ${
                   selectedCategory === item
                     ? 'border-[#5c3386] bg-[#5c3386] text-white'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-[#5c3386]/40'
@@ -132,12 +132,12 @@ export function SupportPanel({ session, isOpen, onClose }: SupportPanelProps) {
                 setStatusMessage('')
               }}
               placeholder={supportPlaceholder[session.role]}
-              className="mt-2 min-h-32 w-full resize-none rounded-[8px] border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+              className="mt-2 min-h-32 w-full resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
             />
           </label>
 
           {statusMessage ? (
-            <p className="rounded-[8px] bg-[#5c3386]/8 px-4 py-3 text-sm font-bold text-[#5c3386]">
+            <p className="rounded-lg bg-[#5c3386]/8 px-4 py-3 text-sm font-bold text-[#5c3386]">
               {statusMessage}
             </p>
           ) : null}
@@ -145,7 +145,7 @@ export function SupportPanel({ session, isOpen, onClose }: SupportPanelProps) {
           <button
             type="button"
             onClick={handleSubmit}
-            className="flex h-12 w-full items-center justify-center rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
+            className="flex h-12 w-full items-center justify-center rounded-lg bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
           >
             Kirim ke Admin
           </button>

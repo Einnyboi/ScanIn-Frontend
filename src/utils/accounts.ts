@@ -1,6 +1,5 @@
 import { loadLocalProfiles } from '../lib/localSession'
 import type { Role } from '../types/auth'
-import { loadAdminUsers, type AdminUser } from './adminUsers'
 
 type ResolvedAccount = {
   identity: string
@@ -8,46 +7,13 @@ type ResolvedAccount = {
   email: string
 }
 
-const knownAccounts: Array<ResolvedAccount & { role: Role }> = [
-  {
-    role: 'mahasiswa',
-    identity: '535240187',
-    name: "Naisya Yuen Ra'af",
-    email: 'naisya@stu.untar.ac.id',
-  },
-  {
-    role: 'mahasiswa',
-    identity: '535240156',
-    name: 'Ahmad Rizki',
-    email: 'ahmad@stu.untar.ac.id',
-  },
-  {
-    role: 'pengajar',
-    identity: '198503152010121001',
-    name: 'Dr. Ahmad Santoso',
-    email: 'ahmad.santoso@untar.ac.id',
-  },
-  {
-    role: 'pengajar',
-    identity: '198808122015032002',
-    name: 'Ir. Siti Nurhaliza',
-    email: 'siti.nurhaliza@untar.ac.id',
-  },
-  {
-    role: 'admin',
-    identity: 'admin-fti',
-    name: 'Admin Fakultas',
-    email: 'admin.fti@untar.ac.id',
-  },
-]
-
 export const getAccountPlaceholder = (role: Role) => {
   if (role === 'mahasiswa') {
-    return 'contoh: naisya@stu.untar.ac.id'
+    return 'contoh: 535240187@stu.untar.ac.id'
   }
 
   if (role === 'pengajar') {
-    return 'contoh: ahmad.santoso@untar.ac.id'
+    return 'contoh: 198503152010121001@untar.ac.id'
   }
 
   return 'contoh: admin.fti@untar.ac.id'
@@ -80,40 +46,16 @@ export const resolveLocalAccount = (
   email: string,
 ): ResolvedAccount => {
   const cleanEmail = email.trim().toLowerCase()
-  const roleLabel = toAdminRole(role)
 
   const storedProfile = loadLocalProfiles().find(
-    (profile) => profile.role === role && profile.email?.toLowerCase() === cleanEmail,
+    (profile) =>
+      profile.role === role && profile.email?.toLowerCase() === cleanEmail,
   )
 
   if (storedProfile) {
     return {
       identity: storedProfile.identity,
       name: storedProfile.name,
-      email: cleanEmail,
-    }
-  }
-
-  const adminUser = loadAdminUsers(knownAccounts.map(toAdminUser)).find(
-    (user) => user.role === roleLabel && user.email.toLowerCase() === cleanEmail,
-  )
-
-  if (adminUser) {
-    return {
-      identity: adminUser.id,
-      name: adminUser.name,
-      email: cleanEmail,
-    }
-  }
-
-  const knownAccount = knownAccounts.find(
-    (account) => account.role === role && account.email === cleanEmail,
-  )
-
-  if (knownAccount) {
-    return {
-      identity: knownAccount.identity,
-      name: knownAccount.name,
       email: cleanEmail,
     }
   }
@@ -128,49 +70,13 @@ export const resolveLocalAccount = (
 export const getResetEmailForIdentity = (
   role: Role,
   identity: string,
-  name: string,
 ) => {
-  const cleanIdentity = identity.trim().toLowerCase()
-  const cleanName = name.trim().toLowerCase()
-  const roleLabel = toAdminRole(role)
-  const users = loadAdminUsers(knownAccounts.map(toAdminUser))
-  const user = users.find(
-    (item) =>
-      item.role === roleLabel &&
-      (item.id.toLowerCase() === cleanIdentity ||
-        item.name.toLowerCase() === cleanName),
-  )
-
-  if (user) {
-    return user.email
-  }
-
   if (role === 'mahasiswa') {
     return `${identity.trim()}@stu.untar.ac.id`
   }
 
   return `${identity.trim()}@untar.ac.id`
 }
-
-const toAdminRole = (role: Role) => {
-  if (role === 'mahasiswa') {
-    return 'Mahasiswa'
-  }
-
-  if (role === 'pengajar') {
-    return 'Pengajar'
-  }
-
-  return 'Admin'
-}
-
-const toAdminUser = (account: ResolvedAccount & { role: Role }): AdminUser => ({
-  id: account.identity,
-  name: account.name,
-  email: account.email,
-  role: toAdminRole(account.role),
-  status: 'Aktif',
-})
 
 const identityFromEmail = (email: string) => email.split('@')[0] || email
 

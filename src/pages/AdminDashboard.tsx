@@ -43,7 +43,6 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-import { correctionTickets } from '../data/mockAttendance'
 import { loadLocalProfiles } from '../lib/localSession'
 import type { CorrectionTicket, CourseSchedule } from '../types/attendance'
 import type { LocalSession } from '../types/auth'
@@ -87,7 +86,7 @@ import {
 } from '../utils/schedules'
 import {
   fetchTicketsFromBackend,
-  loadCorrectionTickets,
+  loadStoredTickets,
   ticketsChangedEvent,
   updateStoredTicket,
 } from '../utils/tickets'
@@ -246,7 +245,7 @@ export default function AdminDashboard({
     loadSchedules(),
   )
   const [tickets, setTickets] = useState<CorrectionTicket[]>(() =>
-    loadCorrectionTickets(correctionTickets),
+    loadStoredTickets(),
   )
   const [reports, setReports] = useState<GeneratedReport[]>(() =>
     loadGeneratedReports(),
@@ -308,9 +307,9 @@ export default function AdminDashboard({
   }, [])
 
   useEffect(() => {
-    const reload = () => setTickets(loadCorrectionTickets(correctionTickets))
+    const reload = () => setTickets(loadStoredTickets())
 
-    void fetchTicketsFromBackend(correctionTickets).then((backendTickets) => {
+    void fetchTicketsFromBackend([]).then((backendTickets) => {
       if (backendTickets) {
         setTickets(backendTickets)
       }

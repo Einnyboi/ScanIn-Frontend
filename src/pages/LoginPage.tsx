@@ -10,7 +10,7 @@ import { LoginHelpPage } from './LoginHelpPage'
 import { clearSession, loadSession, saveSession } from '../lib/localSession'
 import { getRoleOption } from '../lib/roleOptions'
 import type { LocalSession, Role } from '../types/auth'
-import { isUntarAccount, resolveLocalAccount } from '../utils/accounts'
+import { isUntarAccount } from '../utils/accounts'
 import { loginWithBackend } from '../utils/authApi'
 import { validatePassword } from '../utils/password'
 
@@ -58,20 +58,23 @@ export function LoginPage() {
 
     const backendProfile = await loginWithBackend(trimmedAccount, password)
 
-    if (backendProfile && backendProfile.role !== selectedRole) {
+    if (!backendProfile) {
+      setError('Akun belum ada di backend. Jalankan seed database dulu.')
+      return
+    }
+
+    if (backendProfile.role !== selectedRole) {
       setError(
         `Akun ini terdaftar sebagai ${getRoleOption(backendProfile.role).label}. Pilih role yang sesuai.`,
       )
       return
     }
 
-    const accountProfile =
-      backendProfile ?? resolveLocalAccount(selectedRole, trimmedAccount)
     const nextSession: LocalSession = {
       role: selectedRole,
-      identity: accountProfile.identity,
-      name: accountProfile.name,
-      email: accountProfile.email,
+      identity: backendProfile.identity,
+      name: backendProfile.name,
+      email: backendProfile.email,
       loggedAt: new Date().toISOString(),
     }
 
@@ -126,7 +129,7 @@ export function LoginPage() {
         <BrandPanel />
 
         <section className="login-side flex items-center justify-center px-5 py-8 sm:px-8 lg:px-12">
-          <div className="login-card w-full max-w-[520px] rounded-[8px] border border-white bg-white/95 p-6 shadow-2xl shadow-[#2f1d45]/12 sm:p-8 lg:p-10">
+          <div className="login-card w-full max-w-130 rounded-lg border border-white bg-white/95 p-6 shadow-2xl shadow-[#2f1d45]/12 sm:p-8 lg:p-10">
             <LoginForm
               selectedRole={selectedRole}
               activeRole={activeRole}

@@ -49,7 +49,7 @@ export function BrandPanel() {
           {['Presensi real-time', 'Tiket izin', 'Laporan kelas'].map((item) => (
             <div
               key={item}
-              className="rounded-[8px] border border-white/18 bg-white/12 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-black/10 backdrop-blur-md"
+              className="rounded-lg border border-white/18 bg-white/12 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-black/10 backdrop-blur-md"
             >
               {item}
             </div>

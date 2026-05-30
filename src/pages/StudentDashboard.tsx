@@ -3,13 +3,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { DashboardShell } from '../components/dashboard/DashboardShell'
 import { QrCodeCard } from '../components/dashboard/QrCodeCard'
 import { StatCard } from '../components/dashboard/StatCard'
-import { attendanceHistory, correctionTickets } from '../data/mockAttendance'
 import {
   type StatisticsMode,
   StatisticsPage,
 } from './StatisticsPage'
-import type { CourseSchedule, QrPayload } from '../types/attendance'
+import type { AttendanceRecord, CourseSchedule, QrPayload } from '../types/attendance'
 import type { LocalSession } from '../types/auth'
+import {
+  fetchScanRecordsFromBackend,
+  loadStoredScanRecords,
+  scanRecordsChangedEvent,
+} from '../utils/attendanceStorage'
 import {
   type StudentNotification,
   loadStudentNotifications,
@@ -28,7 +32,9 @@ import {
   scheduleChangedEvent,
 } from '../utils/schedules'
 import {
-  loadCorrectionTickets,
+  fetchTicketsFromBackend,
+  loadStoredTickets,
+  ticketsChangedEvent,
   saveCorrectionTicket,
 } from '../utils/tickets'
 
@@ -62,8 +68,11 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false)
   const [ticketReason, setTicketReason] = useState('')
   const [ticketMessage, setTicketMessage] = useState('')
+  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>(
+    () => mapAttendanceHistory(loadStoredScanRecords(), session.identity),
+  )
   const [studentTickets, setStudentTickets] = useState(() =>
-    loadCorrectionTickets(correctionTickets).filter(
+    loadStoredTickets().filter(
       (ticket) => ticket.studentId === session.identity,
     ),
   )
@@ -117,6 +126,52 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   }, [session.identity])
 
   useEffect(() => {
+    const reloadAttendanceHistory = () =>
+      setAttendanceHistory(
+        mapAttendanceHistory(loadStoredScanRecords(), session.identity),
+      )
+
+    void fetchScanRecordsFromBackend().then((backendRecords) => {
+      if (backendRecords) {
+        setAttendanceHistory(
+          mapAttendanceHistory(backendRecords, session.identity),
+        )
+      }
+    })
+
+    window.addEventListener('storage', reloadAttendanceHistory)
+    window.addEventListener(scanRecordsChangedEvent, reloadAttendanceHistory)
+    return () => {
+      window.removeEventListener('storage', reloadAttendanceHistory)
+      window.removeEventListener(scanRecordsChangedEvent, reloadAttendanceHistory)
+    }
+  }, [session.identity])
+
+  useEffect(() => {
+    const reloadTickets = () =>
+      setStudentTickets(
+        loadStoredTickets().filter(
+          (ticket) => ticket.studentId === session.identity,
+        ),
+      )
+
+    void fetchTicketsFromBackend([]).then((backendTickets) => {
+      if (backendTickets) {
+        setStudentTickets(
+          backendTickets.filter((ticket) => ticket.studentId === session.identity),
+        )
+      }
+    })
+
+    window.addEventListener('storage', reloadTickets)
+    window.addEventListener(ticketsChangedEvent, reloadTickets)
+    return () => {
+      window.removeEventListener('storage', reloadTickets)
+      window.removeEventListener(ticketsChangedEvent, reloadTickets)
+    }
+  }, [session.identity])
+
+  useEffect(() => {
     if (!isQrVisible || !canShowQr) {
       return
     }
@@ -143,7 +198,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   const attendanceRate = useMemo(() => {
     const present = attendanceHistory.filter((item) => item.status === 'Hadir').length
     return Math.round((present / attendanceHistory.length) * 100)
-  }, [])
+  }, [attendanceHistory])
 
   const lateCount = attendanceHistory.filter((item) => item.status === 'Terlambat')
     .length
@@ -251,7 +306,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
           <section
             id="student-notifications"
             tabIndex={-1}
-            className="rounded-[8px] border border-[#5c3386]/15 bg-white p-5 shadow-lg shadow-slate-900/6 outline-none focus:ring-4 focus:ring-[#5c3386]/12"
+            className="rounded-lg border border-[#5c3386]/15 bg-white p-5 shadow-lg shadow-slate-900/6 outline-none focus:ring-4 focus:ring-[#5c3386]/12"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -266,7 +321,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                 <button
                   type="button"
                   onClick={handleMarkNotificationsRead}
-                  className="flex h-10 items-center justify-center rounded-[8px] border border-[#5c3386] px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
+                  className="flex h-10 items-center justify-center rounded-lg border border-[#5c3386] px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
                 >
                   Tandai dibaca
                 </button>
@@ -277,7 +332,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                 notifications.slice(0, 3).map((notification) => (
                   <div
                     key={notification.id}
-                    className={`rounded-[8px] border px-4 py-3 ${
+                    className={`rounded-lg border px-4 py-3 ${
                       notification.isRead
                         ? 'border-slate-200 bg-slate-50'
                         : 'border-[#5c3386]/20 bg-[#5c3386]/6'
@@ -292,7 +347,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                   </div>
                 ))
               ) : (
-                <p className="rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
+                <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
                   Belum ada notifikasi baru dari pengajar.
                 </p>
               )}
@@ -324,7 +379,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1fr_420px]">
-          <div className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
+          <div className="rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
@@ -337,7 +392,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
               <button
                 type="button"
                 onClick={() => setIsTicketOpen((current) => !current)}
-                className="flex h-11 items-center justify-center rounded-[8px] border border-[#5c3386] bg-white px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
+                className="flex h-11 items-center justify-center rounded-lg border border-[#5c3386] bg-white px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
               >
                 Ajukan Tiket
               </button>
@@ -357,7 +412,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                       setPayload(null)
                       setSecondsLeft(15)
                     }}
-                    className={`w-full rounded-[8px] border p-4 text-left transition ${
+                    className={`w-full rounded-lg border p-4 text-left transition ${
                       selectedCourse.id === course.id
                         ? 'border-[#5c3386] bg-[#5c3386]/5 shadow-lg shadow-[#5c3386]/10'
                         : 'border-slate-200 bg-white hover:border-[#5c3386]/30'
@@ -385,7 +440,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                 )
               })}
               {!schedules.length ? (
-                <p className="rounded-[8px] bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
+                <p className="rounded-lg bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
                   Belum ada jadwal dari admin.
                 </p>
               ) : null}
@@ -393,7 +448,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-[8px] border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/6">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/6">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
                 Presensi QR
               </p>
@@ -408,7 +463,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                 type="button"
                 onClick={handleOpenQrPage}
                 disabled={!canShowQr}
-                className={`mt-5 flex h-12 w-full items-center justify-center rounded-[8px] px-4 text-sm font-black transition ${
+                className={`mt-5 flex h-12 w-full items-center justify-center rounded-lg px-4 text-sm font-black transition ${
                   canShowQr
                     ? 'bg-[#5c3386] text-white hover:bg-[#4f2b73]'
                     : 'bg-slate-100 text-slate-400'
@@ -418,7 +473,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
               </button>
 
               {!canShowQr ? (
-                <p className="mt-3 rounded-[8px] bg-slate-50 px-4 py-3 text-sm font-bold leading-6 text-slate-500">
+                <p className="mt-3 rounded-lg bg-slate-50 px-4 py-3 text-sm font-bold leading-6 text-slate-500">
                   Status kelas: {getRuntimeLabel(selectedStatus)}. QR akan aktif
                   sesuai jadwal {selectedCourse.time}.
                 </p>
@@ -426,7 +481,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
             </div>
 
             {isTicketOpen ? (
-              <div className="rounded-[8px] border border-[#7d2228]/14 bg-white p-5 shadow-lg shadow-slate-900/6">
+              <div className="rounded-lg border border-[#7d2228]/14 bg-white p-5 shadow-lg shadow-slate-900/6">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
                   Koreksi Presensi
                 </p>
@@ -437,17 +492,17 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                   value={ticketReason}
                   onChange={(event) => setTicketReason(event.target.value)}
                   placeholder="Contoh: QR tidak bisa discan karena kamera perangkat pengajar bermasalah."
-                  className="mt-4 min-h-28 w-full resize-none rounded-[8px] border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+                  className="mt-4 min-h-28 w-full resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
                 />
                 {ticketMessage ? (
-                  <p className="mt-3 rounded-[8px] bg-[#5c3386]/8 px-4 py-3 text-sm font-bold text-[#5c3386]">
+                  <p className="mt-3 rounded-lg bg-[#5c3386]/8 px-4 py-3 text-sm font-bold text-[#5c3386]">
                     {ticketMessage}
                   </p>
                 ) : null}
                 <button
                   type="button"
                   onClick={handleSubmitTicket}
-                  className="mt-4 flex h-11 w-full items-center justify-center rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
+                  className="mt-4 flex h-11 w-full items-center justify-center rounded-lg bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
                 >
                   Simpan Tiket Lokal
                 </button>
@@ -456,7 +511,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
           </div>
         </section>
 
-        <section className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
+        <section className="rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
@@ -467,7 +522,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
               </h2>
             </div>
             <p className="text-sm font-semibold text-slate-500">
-              Data sementara untuk demo UI
+              Data presensi dari backend dan storage lokal
             </p>
           </div>
 
@@ -548,14 +603,14 @@ function StudentQrPage({
             </p>
           </div>
 
-          <div className="rounded-[8px] border border-[#5c3386]/15 bg-[#5c3386]/8 px-4 py-3 text-sm font-black text-[#5c3386]">
+          <div className="rounded-lg border border-[#5c3386]/15 bg-[#5c3386]/8 px-4 py-3 text-sm font-black text-[#5c3386]">
             Token berubah tiap 15 detik
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-5 py-6 lg:py-8">
-        <section className="mb-5 rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
+        <section className="mb-5 rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
             Sesi Aktif
           </p>
@@ -575,7 +630,7 @@ function StudentQrPage({
         {canShowQr && payload ? (
           <QrCodeCard payload={payload} secondsLeft={secondsLeft} />
         ) : (
-          <section className="rounded-[8px] border border-dashed border-slate-300 bg-white p-8 text-center shadow-lg shadow-slate-900/6">
+          <section className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center shadow-lg shadow-slate-900/6">
             <h2 className="text-2xl font-black text-slate-950">
               QR belum tersedia
             </h2>
@@ -586,7 +641,7 @@ function StudentQrPage({
             <button
               type="button"
               onClick={onBack}
-              className="mt-6 inline-flex h-11 items-center justify-center rounded-[8px] bg-[#5c3386] px-5 text-sm font-black text-white transition hover:bg-[#4f2b73]"
+              className="mt-6 inline-flex h-11 items-center justify-center rounded-lg bg-[#5c3386] px-5 text-sm font-black text-white transition hover:bg-[#4f2b73]"
             >
               Pilih Jadwal Lain
             </button>
@@ -623,6 +678,30 @@ function StatusBadge({ status }: StatusBadgeProps) {
       {getRuntimeLabel(status)}
     </span>
   )
+}
+
+function mapAttendanceHistory(
+  records: ReturnType<typeof loadStoredScanRecords>,
+  studentId: string,
+): AttendanceRecord[] {
+  return records
+    .filter((record) => record.studentId === studentId)
+    .map((record) => ({
+      id: record.id,
+      courseTitle: record.courseTitle,
+      date: new Date(record.recordedAt).toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
+      time: record.scannedAt.slice(0, 5),
+      status:
+        record.status === 'Terverifikasi'
+          ? 'Hadir'
+          : record.status === 'Terlambat'
+            ? 'Terlambat'
+            : 'Izin',
+    }))
 }
 
 function CircleIcon() {

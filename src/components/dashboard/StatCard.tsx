@@ -25,7 +25,7 @@ export function StatCard({
   const content = (
     <div className="flex items-center gap-4">
       <div
-        className={`flex h-14 w-14 items-center justify-center rounded-[8px] ${toneClass[tone]}`}
+        className={`flex h-14 w-14 items-center justify-center rounded-lg ${toneClass[tone]}`}
       >
         {icon}
       </div>
@@ -41,7 +41,7 @@ export function StatCard({
       <button
         type="button"
         onClick={onClick}
-        className="group w-full rounded-[8px] border border-white bg-white p-5 text-left shadow-lg shadow-slate-900/6 transition hover:-translate-y-0.5 hover:border-[#5c3386]/30 hover:shadow-xl hover:shadow-[#5c3386]/10"
+        className="group w-full rounded-lg border border-white bg-white p-5 text-left shadow-lg shadow-slate-900/6 transition hover:-translate-y-0.5 hover:border-[#5c3386]/30 hover:shadow-xl hover:shadow-[#5c3386]/10"
       >
         {content}
         <p className="mt-4 text-xs font-black uppercase tracking-[0.14em] text-slate-400 transition group-hover:text-[#5c3386]">
@@ -52,7 +52,7 @@ export function StatCard({
   }
 
   return (
-    <div className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
+    <div className="rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
       {content}
     </div>
   )

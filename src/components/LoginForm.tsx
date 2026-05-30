@@ -59,7 +59,7 @@ export function LoginForm({
       </div>
 
       <div
-        className="grid grid-cols-3 rounded-[8px] bg-slate-100 p-1"
+        className="grid grid-cols-3 rounded-lg bg-slate-100 p-1"
         role="tablist"
         aria-label="Pilih peran login"
       >
@@ -101,7 +101,7 @@ export function LoginForm({
             value={account}
             onChange={(event) => onAccountChange(event.target.value)}
             placeholder={getAccountPlaceholder(activeRole.id)}
-            className="h-14 w-full rounded-[8px] border border-slate-200 bg-white px-4 text-base font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+            className="h-14 w-full rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
           />
           <p className="mt-2 text-xs font-semibold text-slate-500">
             {getAccountDomainHelp(activeRole.id)}
@@ -123,12 +123,12 @@ export function LoginForm({
               value={password}
               onChange={(event) => onPasswordChange(event.target.value)}
               placeholder="Masukkan password"
-              className="h-14 w-full rounded-[8px] border border-slate-200 bg-white px-4 pr-14 text-base font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+              className="h-14 w-full rounded-lg border border-slate-200 bg-white px-4 pr-14 text-base font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
             />
             <button
               type="button"
               onClick={onTogglePassword}
-              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-[8px] text-slate-500 transition hover:bg-slate-100 hover:text-[#5c3386]"
+              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#5c3386]"
               aria-label={
                 showPassword ? 'Sembunyikan password' : 'Tampilkan password'
               }
@@ -157,7 +157,7 @@ export function LoginForm({
             {passwordRules.map((rule) => (
               <div
                 key={rule.id}
-                className={`rounded-[8px] px-3 py-2 text-xs font-black ${
+                className={`rounded-lg px-3 py-2 text-xs font-black ${
                   rule.isValid
                     ? 'bg-emerald-50 text-emerald-700'
                     : 'bg-slate-100 text-slate-500'
@@ -171,7 +171,7 @@ export function LoginForm({
         </div>
 
         {error ? (
-          <p className="rounded-[8px] border border-[#7d2228]/20 bg-[#7d2228]/8 px-4 py-3 text-sm font-semibold text-[#7d2228]">
+          <p className="rounded-lg border border-[#7d2228]/20 bg-[#7d2228]/8 px-4 py-3 text-sm font-semibold text-[#7d2228]">
             {error}
           </p>
         ) : null}
@@ -195,7 +195,7 @@ export function LoginForm({
 
         <button
           type="submit"
-          className="mt-2 flex h-14 w-full items-center justify-center rounded-[8px] bg-[#5c3386] px-5 text-base font-black text-white shadow-xl shadow-[#5c3386]/25 transition duration-300 hover:-translate-y-0.5 hover:bg-[#4f2b73] focus:outline-none focus:ring-4 focus:ring-[#5c3386]/20"
+          className="mt-2 flex h-14 w-full items-center justify-center rounded-lg bg-[#5c3386] px-5 text-base font-black text-white shadow-xl shadow-[#5c3386]/25 transition duration-300 hover:-translate-y-0.5 hover:bg-[#4f2b73] focus:outline-none focus:ring-4 focus:ring-[#5c3386]/20"
         >
           {submitLabel}
         </button>
