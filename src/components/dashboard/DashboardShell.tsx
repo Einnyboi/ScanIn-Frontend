@@ -35,9 +35,9 @@ export function DashboardShell({
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-slate-900">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/92 shadow-sm backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#5c3386] text-white shadow-lg shadow-[#5c3386]/20">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#5c3386] text-white shadow-lg shadow-[#5c3386]/20 sm:h-14 sm:w-14">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="h-7 w-7">
                 <path
                   d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"
@@ -57,21 +57,21 @@ export function DashboardShell({
                 />
               </svg>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
                 {role.dashboardLabel}
               </p>
-              <h1 className="text-2xl font-black text-slate-950">
+              <h1 className="truncate text-xl font-black text-slate-950 sm:text-2xl">
                 {session.name}
               </h1>
-              <p className="mt-0.5 text-sm font-semibold text-slate-500">
+              <p className="mt-0.5 truncate text-sm font-semibold text-slate-500">
                 {role.fieldLabel}: {session.identity}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <div className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+            <div className="col-span-2 flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 sm:col-span-1">
               <CalendarDays className="h-4 w-4 text-[#5c3386]" aria-hidden="true" />
               <span className="hidden sm:inline">{formatDashboardDate(now)}</span>
               <Clock className="h-4 w-4 text-[#7d2228]" aria-hidden="true" />
@@ -111,7 +111,7 @@ export function DashboardShell({
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-5 py-6 lg:px-8 lg:py-8">
+      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-5 lg:px-8 lg:py-8">
         {children}
       </main>
 

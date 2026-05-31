@@ -23,15 +23,15 @@ export function StatCard({
   onClick,
 }: StatCardProps) {
   const content = (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-3 sm:gap-4">
       <div
-        className={`flex h-14 w-14 items-center justify-center rounded-lg ${toneClass[tone]}`}
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg sm:h-14 sm:w-14 ${toneClass[tone]}`}
       >
         {icon}
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-sm font-black text-slate-500">{label}</p>
-        <p className="mt-1 text-3xl font-black text-slate-950">{value}</p>
+        <p className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">{value}</p>
       </div>
     </div>
   )
@@ -41,7 +41,7 @@ export function StatCard({
       <button
         type="button"
         onClick={onClick}
-        className="group w-full rounded-lg border border-white bg-white p-5 text-left shadow-lg shadow-slate-900/6 transition hover:-translate-y-0.5 hover:border-[#5c3386]/30 hover:shadow-xl hover:shadow-[#5c3386]/10"
+        className="group w-full rounded-lg border border-white bg-white p-4 text-left shadow-lg shadow-slate-900/6 transition hover:-translate-y-0.5 hover:border-[#5c3386]/30 hover:shadow-xl hover:shadow-[#5c3386]/10 sm:p-5"
       >
         {content}
         <p className="mt-4 text-xs font-black uppercase tracking-[0.14em] text-slate-400 transition group-hover:text-[#5c3386]">
@@ -52,7 +52,7 @@ export function StatCard({
   }
 
   return (
-    <div className="rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
+    <div className="rounded-lg border border-white bg-white p-4 shadow-lg shadow-slate-900/6 sm:p-5">
       {content}
     </div>
   )

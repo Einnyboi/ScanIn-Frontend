@@ -7,7 +7,12 @@ import {
   type StatisticsMode,
   StatisticsPage,
 } from './StatisticsPage'
-import type { AttendanceRecord, CourseSchedule, QrPayload } from '../types/attendance'
+import type {
+  AttendanceRecord,
+  CorrectionTicket,
+  CourseSchedule,
+  QrPayload,
+} from '../types/attendance'
 import type { LocalSession } from '../types/auth'
 import {
   fetchScanRecordsFromBackend,
@@ -70,9 +75,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>(
     () => mapAttendanceHistory(loadStoredScanRecords(), session.identity),
   )
-  const [studentTickets, setStudentTickets] = useState(() =>
-    [],
-  )
+  const [studentTickets, setStudentTickets] = useState<CorrectionTicket[]>([])
   const [activeMetric, setActiveMetric] = useState<StudentMetric>(null)
   const [notifications, setNotifications] = useState<StudentNotification[]>(() =>
     loadStudentNotifications(session.identity),
@@ -285,7 +288,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
     )
   }
 
-  if (isQrVisible) {
+  if (isQrVisible && selectedCourse) {
     return (
       <StudentQrPage
         canShowQr={canShowQr}

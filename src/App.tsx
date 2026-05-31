@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { LoginPage } from './pages/LoginPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { LoginHelpPage } from './pages/LoginHelpPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import AdminDashboard from './pages/AdminDashboard'
 import { LecturerDashboard } from './pages/LecturerDashboard'
 import { LecturerSessionPage } from './pages/LecturerSessionPage'
@@ -78,6 +79,17 @@ export default function App() {
           element={
             <LoginHelpPage
               initialRole="mahasiswa"
+              onBack={() => {
+                window.location.href = '/'
+              }}
+            />
+          }
+        />
+
+        <Route
+          path="/reset-password"
+          element={
+            <ResetPasswordPage
               onBack={() => {
                 window.location.href = '/'
               }}

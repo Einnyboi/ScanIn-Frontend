@@ -26,10 +26,9 @@ export const loginWithBackend = async (
   password: string,
 ): Promise<BackendSessionProfile | null> => {
   try {
-    // Backend kita pakai 'username', bukan 'email'
     const login = await apiRequest<BackendLoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username: usernameOrEmail, password }),
+      body: JSON.stringify({ email: usernameOrEmail, password }),
     })
 
     // Simpan token ke localStorage biar request selanjutnya ter-auth
@@ -43,7 +42,7 @@ export const loginWithBackend = async (
 
     return {
       role: mapBackendRole(user.role || login.role),
-      identity: user.id,
+      identity: getIdentityFromEmail(user.username),
       name: user.nama,
       email: user.username,
       token: login.access_token,
@@ -59,3 +58,5 @@ const mapBackendRole = (role: string): Role => {
   if (role === 'DOSEN' || role === 'ASDOS') return 'pengajar'
   return 'mahasiswa'
 }
+
+const getIdentityFromEmail = (email: string) => email.split('@')[0] || email

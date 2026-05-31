@@ -90,6 +90,7 @@ import {
   updateStoredTicket,
 } from '../utils/tickets'
 import {
+  fetchPasswordResetSmtpStatus,
   fetchPasswordResetRequestsFromBackend,
   loadPasswordResetRequests,
   markPasswordResetAsSent,
@@ -472,16 +473,21 @@ export default function AdminDashboard({
     if (request.emailStatus === 'SENT') {
       setAdminNotice({
         tone: 'success',
-        message: `Link reset berhasil dikirim ke ${request.registeredEmail}.`,
+        message: `Kode OTP reset berhasil dikirim ke ${request.registeredEmail}.`,
       })
       return
     }
 
     if (request.emailStatus === 'SMTP_NOT_CONFIGURED') {
+      const smtpStatus = await fetchPasswordResetSmtpStatus().catch(() => null)
+      const missingConfig = smtpStatus?.missing?.length
+        ? ` Yang belum lengkap: ${smtpStatus.missing.join(', ')}.`
+        : ''
+
       setAdminNotice({
         tone: 'warning',
         message:
-          'Permintaan tercatat, tapi SMTP backend belum dikonfigurasi jadi email asli belum terkirim.',
+          `Permintaan tercatat, tapi SMTP backend belum siap jadi email OTP belum terkirim.${missingConfig}`,
       })
       return
     }
@@ -489,7 +495,9 @@ export default function AdminDashboard({
     setAdminNotice({
       tone: 'danger',
       message:
-        'Backend gagal mengirim email reset. Cek konfigurasi SMTP dan koneksi email.',
+        request.emailError
+          ? `Backend gagal mengirim email reset: ${request.emailError}`
+          : 'Backend gagal mengirim email reset. Cek konfigurasi SMTP dan koneksi email.',
     })
   }
 
@@ -635,14 +643,14 @@ function AdminSidebar({
 }) {
   return (
     <aside className="sticky top-0 z-30 flex flex-col bg-[#573485] text-white shadow-xl shadow-[#28183d]/15 md:h-dvh md:max-h-dvh md:overflow-hidden">
-      <div className="shrink-0 border-b border-white/14 px-5 py-6 md:px-6">
+      <div className="shrink-0 border-b border-white/14 px-4 py-4 md:px-6 md:py-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-white/14 text-xl font-black tracking-tight text-white shadow-lg shadow-[#2b1844]/20 ring-1 ring-white/10">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-white/14 text-base font-black tracking-tight text-white shadow-lg shadow-[#2b1844]/20 ring-1 ring-white/10 md:h-14 md:w-14 md:text-xl">
               FTI
             </div>
             <div className="min-w-0">
-              <p className="truncate text-2xl font-black leading-none tracking-tight text-white">
+              <p className="truncate text-xl font-black leading-none tracking-tight text-white md:text-2xl">
                 FTI UNTAR
               </p>
               <p className="mt-1 text-sm font-semibold text-white/65">
@@ -661,7 +669,7 @@ function AdminSidebar({
         </div>
       </div>
 
-      <div className="shrink-0 border-b border-white/14 px-5 py-5 md:px-6">
+      <div className="hidden shrink-0 border-b border-white/14 px-5 py-5 md:block md:px-6">
         <div className="flex items-center gap-5">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#7d2228] text-white shadow-xl shadow-[#321a4c]/25">
             <Shield className="h-8 w-8" aria-hidden="true" />
@@ -677,8 +685,8 @@ function AdminSidebar({
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-2 overflow-hidden px-5 py-5">
-        <p className="px-3 pb-2 text-xs font-black uppercase tracking-[0.14em] text-white/42">
+      <nav className="flex gap-2 overflow-x-auto px-4 py-3 md:flex-1 md:flex-col md:overflow-hidden md:px-5 md:py-5">
+        <p className="hidden px-3 pb-2 text-xs font-black uppercase tracking-[0.14em] text-white/42 md:block">
           Menu Utama
         </p>
         {menuItems.map((item) => {
@@ -690,16 +698,16 @@ function AdminSidebar({
               key={item.id}
               type="button"
               onClick={() => onViewChange(item.id)}
-              className={`relative flex h-12 w-full items-center justify-start gap-4 rounded-[8px] px-5 text-left text-lg font-black transition ${
+              className={`relative flex h-11 shrink-0 items-center justify-start gap-2 rounded-[8px] px-3 text-left text-sm font-black transition md:h-12 md:w-full md:gap-4 md:px-5 md:text-lg ${
                 isActive
                   ? 'bg-white/14 text-white shadow-lg shadow-[#321a4c]/20'
                   : 'text-white/64 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <Icon className="h-6 w-6 shrink-0" aria-hidden="true" />
+              <Icon className="h-5 w-5 shrink-0 md:h-6 md:w-6" aria-hidden="true" />
               <span>{item.label}</span>
               {isActive ? (
-                <span className="absolute right-5 h-2.5 w-2.5 rounded-full bg-white/70" />
+                <span className="absolute right-3 h-2 w-2 rounded-full bg-white/70 md:right-5 md:h-2.5 md:w-2.5" />
               ) : null}
             </button>
           )
@@ -752,6 +760,7 @@ function AdminNoticeBanner({
 
 function DashboardView({
   analytics,
+  complaints,
   onSendReset,
   passwordRequests,
   schedules,
@@ -760,6 +769,7 @@ function DashboardView({
   users,
 }: {
   analytics: AdminAnalytics
+  complaints: SupportComplaint[]
   onSendReset: (requestId: string) => void | Promise<void>
   passwordRequests: PasswordResetRequest[]
   schedules: CourseSchedule[]
@@ -836,6 +846,7 @@ function DashboardView({
             <ActivityTile label="Scan tersimpan" value={scanRecordsCount} />
             <ActivityTile label="Tiket koreksi" value={pendingTickets.length} />
             <ActivityTile label="Reset password" value={pendingResets.length} />
+            <ActivityTile label="Pengaduan akun" value={complaints.length} />
           </div>
         </AdminCard>
 
@@ -987,7 +998,7 @@ function NotificationsView({
                     {formatNotificationDate(request.createdAt)}
                   </p>
                   <p className="mt-3 rounded-[8px] bg-slate-50 px-4 py-3 text-sm font-semibold leading-6 text-slate-600">
-                    Kirim tautan reset ke {request.registeredEmail}
+                    Kirim kode OTP reset ke {request.registeredEmail}
                   </p>
                 </div>
                 <button
@@ -996,7 +1007,7 @@ function NotificationsView({
                   className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white"
                 >
                   <KeyRound className="h-4 w-4" />
-                  Kirim Email Reset
+                  Setujui & Kirim OTP
                 </button>
               </div>
             </article>
@@ -2235,17 +2246,17 @@ function PasswordResetItem({
     request.emailStatus === 'FAILED' ||
     request.emailStatus === 'SMTP_NOT_CONFIGURED'
   const buttonText = isEmailSent
-    ? 'Sudah dikirim'
+    ? 'OTP terkirim'
     : hasEmailIssue
       ? 'Coba Kirim Lagi'
-      : 'Kirim Email Reset'
+      : 'Setujui & Kirim OTP'
   const helperText =
     request.emailStatus === 'SMTP_NOT_CONFIGURED'
-      ? 'SMTP backend belum aktif.'
+      ? request.emailError ?? 'SMTP backend belum aktif.'
       : request.emailStatus === 'FAILED'
-        ? 'Email gagal dikirim.'
+        ? request.emailError ?? 'Email gagal dikirim.'
         : request.emailStatus === 'SENT'
-          ? 'Email berhasil dikirim.'
+          ? 'Email OTP berhasil dikirim.'
           : ''
 
   return (

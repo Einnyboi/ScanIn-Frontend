@@ -458,9 +458,11 @@ function SummaryCard({ item }: { item: SummaryItem }) {
           : 'text-slate-950'
 
   return (
-    <div className="rounded-lg border border-white bg-white p-6 shadow-lg shadow-slate-900/8">
+    <div className="rounded-lg border border-white bg-white p-4 shadow-lg shadow-slate-900/8 sm:p-6">
       <p className="text-sm font-bold text-slate-500">{item.label}</p>
-      <p className={`mt-4 text-4xl font-black ${valueColor}`}>{item.value}</p>
+      <p className={`mt-3 text-3xl font-black sm:mt-4 sm:text-4xl ${valueColor}`}>
+        {item.value}
+      </p>
     </div>
   )
 }
@@ -473,9 +475,11 @@ function ChartCard({
   children: ReactNode
 }) {
   return (
-    <section className="rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/8 sm:p-7">
-      <h2 className="text-2xl font-black text-slate-950">{title}</h2>
-      <div className="mt-6 overflow-x-auto pb-2">{children}</div>
+    <section className="rounded-lg border border-white bg-white p-4 shadow-lg shadow-slate-900/8 sm:p-7">
+      <h2 className="text-xl font-black text-slate-950 sm:text-2xl">{title}</h2>
+      <div className="-mx-4 mt-5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:mt-6 sm:px-0">
+        {children}
+      </div>
     </section>
   )
 }
@@ -506,7 +510,7 @@ function WeeklyBarChart({ data }: { data: WeeklyAttendance[] }) {
       : chartLeft + selectedIndex * groupWidth + groupWidth / 2
 
   return (
-    <div className="min-w-225">
+    <div className="min-w-[720px] lg:min-w-0">
       <p className="mb-3 text-sm font-bold text-slate-500">
         Klik bar grafik untuk melihat detail hadir, terlambat, dan alpha.
       </p>
@@ -677,7 +681,7 @@ function SessionBarChart({ data }: { data: SessionStatistics[] }) {
       : chartLeft + selectedIndex * groupWidth + groupWidth / 2
 
   return (
-    <div className="min-w-225">
+    <div className="min-w-[720px] lg:min-w-0">
       <p className="mb-3 text-sm font-bold text-slate-500">
         Klik bar grafik untuk melihat total jadwal, yang aktif, dan yang masih menunggu.
       </p>
@@ -859,7 +863,7 @@ function LineChart({
       : points[Math.min(selectedIndex, points.length - 1)]
 
   return (
-    <div className="min-w-225">
+    <div className="min-w-[720px] lg:min-w-0">
       <p className="mb-3 text-sm font-bold text-slate-500">
         Klik titik grafik untuk melihat detail {label.toLowerCase()}.
       </p>
@@ -1021,10 +1025,34 @@ function DetailTable({
         : 'text-[#7d2228]'
 
   return (
-    <section className="rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/8 sm:p-7">
-      <h2 className="text-2xl font-black text-slate-950">{title}</h2>
-      <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-170 border-collapse text-left">
+    <section className="rounded-lg border border-white bg-white p-4 shadow-lg shadow-slate-900/8 sm:p-7">
+      <h2 className="text-xl font-black text-slate-950 sm:text-2xl">{title}</h2>
+      <div className="mt-4 grid gap-3 md:hidden">
+        {rows.map((row) => (
+          <article
+            key={row.join('-')}
+            className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+          >
+            <p className={`text-base font-black ${accent}`}>
+              {row[row.length - 1]}
+            </p>
+            <div className="mt-3 space-y-2">
+              {row.map((cell, index) => (
+                <div key={`${cell}-${index}`} className="flex items-start justify-between gap-4">
+                  <span className="text-xs font-black uppercase text-slate-400">
+                    {columns[index]}
+                  </span>
+                  <span className="max-w-[62%] text-right text-sm font-bold text-slate-800">
+                    {cell}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+      <div className="mt-5 hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[680px] border-collapse text-left">
           <thead>
             <tr className="bg-slate-50">
               {columns.map((column) => (

@@ -296,7 +296,7 @@ export function LecturerSessionPage({
             <div className="flex items-center gap-4">
               <PeopleIcon />
               <div>
-                <h1 className="text-3xl font-black text-slate-950">Mode Manual</h1>
+            <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">Mode Manual</h1>
                 <p className="mt-1 text-sm font-bold text-slate-500">
                   {course.title} - {course.room}
                 </p>
@@ -305,13 +305,63 @@ export function LecturerSessionPage({
             <button
               type="button"
               onClick={() => setMode('qr')}
-              className="flex h-12 items-center justify-center rounded-[8px] border border-[#5c3386] px-5 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
+            className="flex h-12 w-full items-center justify-center rounded-[8px] border border-[#5c3386] px-5 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white sm:w-auto"
             >
               Kembali ke Mode QR
             </button>
           </div>
 
-          <div className="mt-8 overflow-x-auto">
+          <div className="mt-8 grid gap-3 md:hidden">
+            {manualStudents.map((student) => {
+              const record = latestRecordByStudent.get(student.studentId)
+              const status = record?.status ?? 'Tidak Hadir'
+              const time = record?.scannedAt.slice(0, 5) ?? student.defaultTime
+
+              return (
+                <article
+                  key={student.studentId}
+                  className="rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-black text-slate-950">
+                        {student.studentName}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        {student.studentId} - {time}
+                      </p>
+                    </div>
+                    <SessionStatusPill status={status} />
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onManualMark(student, 'Terverifikasi')}
+                      className="h-10 rounded-[8px] bg-emerald-600 px-3 text-sm font-black text-white transition hover:bg-emerald-700"
+                    >
+                      Hadir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onManualMark(student, 'Terlambat')}
+                      className="h-10 rounded-[8px] bg-[#c28a08] px-3 text-sm font-black text-white transition hover:bg-[#a87607]"
+                    >
+                      Telat
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onManualMark(student, 'Tidak Hadir')}
+                      className="h-10 rounded-[8px] border border-[#7d2228] px-3 text-sm font-black text-[#7d2228] transition hover:bg-[#7d2228] hover:text-white"
+                    >
+                      Alpa
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+
+          <div className="mt-8 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[900px] border-collapse text-left">
               <thead>
                 <tr className="bg-slate-50">
@@ -412,7 +462,7 @@ export function LecturerSessionPage({
           </div>
           <div className="rounded-[8px] bg-white/10 px-5 py-4 text-left md:text-right">
             <p className="text-sm font-bold text-white/80">Auto-close dalam</p>
-            <p className="mt-1 font-mono text-4xl font-black text-[#7d2228]">
+            <p className="mt-1 font-mono text-3xl font-black text-[#7d2228] sm:text-4xl">
               {formatDuration(secondsLeft)}
             </p>
             <p className="mt-1 text-xs font-bold text-white/70">
@@ -433,7 +483,7 @@ export function LecturerSessionPage({
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
             Scanner QR
           </p>
-          <h2 className="mt-2 text-3xl font-black text-slate-950">
+          <h2 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">
             Scan QR Mahasiswa
           </h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
@@ -509,7 +559,7 @@ export function LecturerSessionPage({
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-4">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <button
               type="button"
               onClick={handleStartCamera}

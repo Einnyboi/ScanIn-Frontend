@@ -46,11 +46,11 @@ export function LoginForm({
 
   return (
     <>
-      <div className="mb-8">
+      <div className="mb-6 sm:mb-8">
         <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#7d2228]">
           Portal Presensi
         </p>
-        <h2 className="mt-3 text-3xl font-black text-[#5c3386] sm:text-4xl">
+        <h2 className="mt-3 text-2xl font-black leading-tight text-[#5c3386] sm:text-4xl">
           Masuk ke akun kamu
         </h2>
         <p className="mt-3 text-sm leading-6 text-slate-500">
@@ -73,20 +73,20 @@ export function LoginForm({
               role="tab"
               aria-selected={isActive}
               onClick={() => onRoleChange(role.id)}
-              className={`flex min-h-12 items-center justify-center gap-2 rounded-[7px] px-2 text-sm font-bold transition duration-300 sm:text-base ${
+          className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-[7px] px-2 text-[11px] font-bold transition duration-300 sm:flex-row sm:gap-2 sm:text-base ${
                 isActive
                   ? 'bg-[#5c3386] text-white shadow-lg shadow-[#5c3386]/25'
                   : 'text-slate-500 hover:bg-white hover:text-[#5c3386]'
               }`}
             >
               {role.icon}
-              <span className="hidden sm:inline">{role.label}</span>
+              <span>{role.label}</span>
             </button>
           )
         })}
       </div>
 
-      <form className="mt-8 space-y-5" onSubmit={onSubmit}>
+      <form className="mt-6 space-y-4 sm:mt-8 sm:space-y-5" onSubmit={onSubmit}>
         <div>
           <label
             htmlFor="account"

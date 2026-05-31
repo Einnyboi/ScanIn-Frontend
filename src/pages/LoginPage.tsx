@@ -124,12 +124,12 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#f7f4ef] text-slate-900">
+    <div className="min-h-screen overflow-x-hidden bg-[#f7f4ef] text-slate-900">
       <main className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
         <BrandPanel />
 
-        <section className="login-side flex items-center justify-center px-5 py-8 sm:px-8 lg:px-12">
-          <div className="login-card w-full max-w-130 rounded-lg border border-white bg-white/95 p-6 shadow-2xl shadow-[#2f1d45]/12 sm:p-8 lg:p-10">
+        <section className="login-side flex items-center justify-center px-4 py-6 sm:px-8 lg:px-12">
+          <div className="login-card w-full max-w-[520px] rounded-xl border border-white bg-white/95 p-5 shadow-2xl shadow-[#2f1d45]/12 sm:p-8 lg:p-10">
             <LoginForm
               selectedRole={selectedRole}
               activeRole={activeRole}

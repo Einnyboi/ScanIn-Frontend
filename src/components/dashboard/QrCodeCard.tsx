@@ -22,10 +22,10 @@ export function QrCodeCard({ payload, secondsLeft }: QrCodeCardProps) {
   const progress = Math.max(0, Math.min(100, (secondsLeft / 15) * 100))
 
   return (
-    <div className="rounded-lg border border-[#5c3386]/12 bg-white p-5 shadow-xl shadow-slate-900/8">
+    <div className="rounded-lg border border-[#5c3386]/12 bg-white p-4 shadow-xl shadow-slate-900/8 sm:p-5">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
-        <div className="mx-auto rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
-          <div className="rounded-lg bg-white p-4 shadow-lg shadow-slate-900/10">
+        <div className="mx-auto w-full max-w-[292px] rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner sm:max-w-[320px]">
+          <div className="rounded-lg bg-white p-3 shadow-lg shadow-slate-900/10 sm:p-4">
             <QRCodeSVG
               value={qrValue}
               size={244}
@@ -33,6 +33,7 @@ export function QrCodeCard({ payload, secondsLeft }: QrCodeCardProps) {
               marginSize={2}
               fgColor="#5c3386"
               bgColor="#ffffff"
+              className="h-auto w-full"
               aria-label="QR presensi dinamis"
             />
           </div>
@@ -42,7 +43,7 @@ export function QrCodeCard({ payload, secondsLeft }: QrCodeCardProps) {
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
             QR Presensi Aktif
           </p>
-          <h3 className="mt-2 text-2xl font-black text-slate-950">
+          <h3 className="mt-2 text-xl font-black text-slate-950 sm:text-2xl">
             {payload.courseTitle}
           </h3>
           <p className="mt-2 text-sm font-semibold text-slate-500">
