@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { DashboardShell } from '../components/dashboard/DashboardShell'
 import { QrCodeCard } from '../components/dashboard/QrCodeCard'
@@ -22,7 +23,6 @@ import {
 import {
   type StudentNotification,
   loadStudentNotifications,
-  markStudentNotificationsRead,
 } from '../utils/notifications'
 import { createQrPayload, saveActiveQrPayload } from '../utils/qr'
 import {
@@ -39,7 +39,6 @@ import {
 import {
   fetchTicketsFromBackend,
   ticketsChangedEvent,
-  saveCorrectionTicket,
 } from '../utils/tickets'
 
 type StudentDashboardProps = {
@@ -68,10 +67,6 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   const [payload, setPayload] = useState<QrPayload | null>(null)
   const [secondsLeft, setSecondsLeft] = useState(15)
   const [isQrVisible, setIsQrVisible] = useState(false)
-  const [isTicketOpen, setIsTicketOpen] = useState(false)
-  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false)
-  const [ticketReason, setTicketReason] = useState('')
-  const [ticketMessage, setTicketMessage] = useState('')
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>(
     () => mapAttendanceHistory(loadStoredScanRecords(), session.identity),
   )
@@ -213,47 +208,6 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
     (notification) => !notification.isRead,
   ).length
 
-  const handleSubmitTicket = async () => {
-    if (!selectedCourse) {
-      setTicketMessage('Belum ada jadwal yang bisa dipilih.')
-      return
-    }
-
-    if (!ticketReason.trim()) {
-      setTicketMessage('Isi alasan koreksi dulu ya.')
-      return
-    }
-
-    const newTicket = {
-      id: `ticket-${session.identity}-${Date.now()}`,
-      studentName: session.name,
-      studentId: session.identity,
-      courseTitle: selectedCourse.title,
-      date: new Date().toISOString().split('T')[0],
-      reason: ticketReason.trim(),
-      status: 'Menunggu' as const,
-    }
-
-    try {
-      const savedTicket = await saveCorrectionTicket(newTicket)
-      setStudentTickets((currentTickets) => [
-        savedTicket,
-        ...currentTickets.filter((ticket) => ticket.id !== savedTicket.id),
-      ])
-      setTicketMessage(
-        'Tiket koreksi tersimpan dan sudah masuk ke panel pengajar serta admin.',
-      )
-      setTicketReason('')
-    } catch {
-      setTicketMessage('Gagal mengirim tiket ke backend. Coba lagi ya.')
-    }
-  }
-
-  const handleMarkNotificationsRead = () => {
-    markStudentNotificationsRead(session.identity)
-    setNotifications(loadStudentNotifications(session.identity))
-  }
-
   const handleOpenQrPage = () => {
     if (!canShowQr || !selectedCourse) {
       return
@@ -264,18 +218,6 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
     saveActiveQrPayload(nextPayload)
     setSecondsLeft(15)
     setIsQrVisible(true)
-  }
-
-  const handleNotificationShortcut = () => {
-    setIsNotificationPanelOpen(true)
-    window.setTimeout(() => {
-      const notificationPanel = document.getElementById('student-notifications')
-
-      if (notificationPanel) {
-        notificationPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        notificationPanel.focus({ preventScroll: true })
-      }
-    }, 0)
   }
 
   if (activeMetric) {
@@ -309,66 +251,13 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
   return (
     <DashboardShell
       notificationCount={unreadNotificationCount}
+      notificationHref="/student/notifications"
       notificationLabel="Notifikasi"
       onLogout={onLogout}
-      onNotificationClick={handleNotificationShortcut}
       session={session}
     >
       <div className="space-y-6">
-        {notifications.length || isNotificationPanelOpen ? (
-          <section
-            id="student-notifications"
-            tabIndex={-1}
-            className="rounded-lg border border-[#5c3386]/15 bg-white p-5 shadow-lg shadow-slate-900/6 outline-none focus:ring-4 focus:ring-[#5c3386]/12"
-          >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
-                  Notifikasi
-                </p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">
-                  Update dari pengajar
-                </h2>
-              </div>
-              {unreadNotificationCount ? (
-                <button
-                  type="button"
-                  onClick={handleMarkNotificationsRead}
-                  className="flex h-10 items-center justify-center rounded-lg border border-[#5c3386] px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
-                >
-                  Tandai dibaca
-                </button>
-              ) : null}
-            </div>
-            <div className="mt-4 grid gap-3">
-              {notifications.length ? (
-                notifications.slice(0, 3).map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`rounded-lg border px-4 py-3 ${
-                      notification.isRead
-                        ? 'border-slate-200 bg-slate-50'
-                        : 'border-[#5c3386]/20 bg-[#5c3386]/6'
-                    }`}
-                  >
-                    <p className="font-black text-slate-900">
-                      {notification.title}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
-                      {notification.message}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
-                  Belum ada notifikasi baru dari pengajar.
-                </p>
-              )}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid grid-cols-3 gap-2 sm:gap-4">
           <StatCard
             label="Kehadiran"
             value={`${attendanceRate}%`}
@@ -402,13 +291,14 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                   Pilih kelas untuk presensi
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsTicketOpen((current) => !current)}
-                className="flex h-11 items-center justify-center rounded-lg border border-[#5c3386] bg-white px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
+              <Link
+                to={`/student/tickets/new${
+                  selectedCourse ? `?courseId=${selectedCourse.id}` : ''
+                }`}
+                className="flex h-11 w-full items-center justify-center rounded-lg border border-[#5c3386] bg-white px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white sm:w-auto"
               >
                 Ajukan Tiket
-              </button>
+              </Link>
             </div>
 
             <div className="mt-5 space-y-3">
@@ -420,7 +310,6 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                     type="button"
                     onClick={() => {
                       setSelectedCourse(course)
-                      setTicketMessage('')
                       setIsQrVisible(false)
                       setPayload(null)
                       setSecondsLeft(15)
@@ -493,34 +382,6 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
               ) : null}
             </div>
 
-            {isTicketOpen ? (
-              <div className="rounded-lg border border-[#7d2228]/14 bg-white p-5 shadow-lg shadow-slate-900/6">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
-                  Koreksi Presensi
-                </p>
-                <h3 className="mt-1 text-xl font-black text-slate-950">
-                  Ajukan tiket untuk {selectedCourse?.title ?? 'jadwal terpilih'}
-                </h3>
-                <textarea
-                  value={ticketReason}
-                  onChange={(event) => setTicketReason(event.target.value)}
-                  placeholder="Contoh: QR tidak bisa discan karena kamera perangkat pengajar bermasalah."
-                  className="mt-4 min-h-28 w-full resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
-                />
-                {ticketMessage ? (
-                  <p className="mt-3 rounded-lg bg-[#5c3386]/8 px-4 py-3 text-sm font-bold text-[#5c3386]">
-                    {ticketMessage}
-                  </p>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={handleSubmitTicket}
-                  className="mt-4 flex h-11 w-full items-center justify-center rounded-lg bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
-                >
-                  Simpan Tiket Lokal
-                </button>
-              </div>
-            ) : null}
           </div>
         </section>
 
@@ -612,7 +473,7 @@ function StudentQrPage({
               QR Presensi
             </h1>
             <p className="mt-2 text-sm font-semibold text-slate-500">
-              {session.name} - {session.identity}
+              NIM: {session.identity}
             </p>
           </div>
 
