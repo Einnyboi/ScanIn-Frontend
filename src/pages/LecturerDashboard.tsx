@@ -319,21 +319,6 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     }
   }
 
-  const handleTicketNotificationClick = () => {
-    setScannerMessage(
-      pendingTicketCount
-        ? `${pendingTicketCount} tiket koreksi menunggu keputusan pengajar.`
-        : 'Belum ada permohonan koreksi baru.',
-    )
-
-    const ticketPanel = document.getElementById('lecturer-ticket-panel')
-
-    if (ticketPanel) {
-      ticketPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      ticketPanel.focus({ preventScroll: true })
-    }
-  }
-
   if (activeMetric) {
     return (
       <StatisticsPage
@@ -360,13 +345,13 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
   return (
     <DashboardShell
       notificationCount={pendingTicketCount}
+      notificationHref="/lecturer/notifications"
       notificationLabel="Tiket Baru"
       onLogout={onLogout}
-      onNotificationClick={handleTicketNotificationClick}
       session={session}
     >
       <div className="space-y-6">
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid grid-cols-3 gap-2 sm:gap-4">
           <StatCard
             label="Mahasiswa Hadir"
             value={`${activeStudents}`}
@@ -432,7 +417,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
                         type="button"
                         onClick={() => handleOpenCourse(course)}
                         disabled={!canOpenSession}
-                        className={`flex h-11 items-center justify-center rounded-[8px] px-4 text-sm font-black transition ${
+                        className={`flex h-11 w-full items-center justify-center rounded-[8px] px-4 text-sm font-black transition sm:w-auto ${
                           canOpenSession
                             ? 'bg-[#5c3386] text-white hover:bg-[#4f2b73]'
                             : 'bg-slate-100 text-slate-400'
@@ -514,9 +499,59 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
             </div>
           </div>
 
-          {/* Ticket panel archived per request: dosen ticket UI commented out.
-              To restore, uncomment this block and ensure ticket filtering is applied.
-          */}
+          <div
+            id="lecturer-ticket-panel"
+            tabIndex={-1}
+            className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6 outline-none focus:ring-4 focus:ring-[#5c3386]/12"
+          >
+            <h2 className="text-2xl font-black text-slate-950">
+              Permohonan Koreksi Kehadiran
+            </h2>
+            <div className="mt-5 space-y-3">
+              {pendingTickets.length ? (
+                pendingTickets.map((ticket) => (
+                  <article
+                    key={ticket.id}
+                    className="rounded-[8px] border border-slate-200 p-4"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-black text-slate-950">
+                          {ticket.studentName}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">
+                          NIM: {ticket.studentId} - {ticket.courseTitle}
+                        </p>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                          {ticket.reason}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => void updateTicket(ticket.id, 'Disetujui')}
+                          className="h-10 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
+                        >
+                          Setujui
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void updateTicket(ticket.id, 'Ditolak')}
+                          className="h-10 rounded-[8px] border border-[#7d2228] px-4 text-sm font-black text-[#7d2228] transition hover:bg-[#7d2228] hover:text-white"
+                        >
+                          Tolak
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="rounded-[8px] bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
+                  Tidak ada permohonan baru.
+                </p>
+              )}
+            </div>
+          </div>
         </section>
       </div>
     </DashboardShell>

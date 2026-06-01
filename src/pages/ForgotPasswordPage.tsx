@@ -20,12 +20,13 @@ export function ForgotPasswordPage({
   const [name, setName] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const activeRole = useMemo(
     () => roleOptions.find((option) => option.id === role) ?? roleOptions[0],
     [role],
   )
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const cleanEmail = email.trim().toLowerCase()
 
@@ -45,19 +46,31 @@ export function ForgotPasswordPage({
       return
     }
 
-    createPasswordResetRequest({
+    setIsSubmitting(true)
+
+    const result = await createPasswordResetRequest({
       email: cleanEmail,
       identity,
       name,
       role,
     })
+
+    setIsSubmitting(false)
     setError('')
+
+    if (result.synced) {
+      setMessage(
+        `Permintaan reset password sudah masuk ke admin. Setelah disetujui, kode OTP dan link reset akan dikirim ke ${cleanEmail}.`,
+      )
+      setEmail('')
+      setIdentity('')
+      setName('')
+      return
+    }
+
     setMessage(
-      `Permintaan reset password dikirim ke admin dan link reset akan dikirim ke ${cleanEmail} jika SMTP backend sudah dikonfigurasi.`,
+      'Permintaan tersimpan di perangkat ini, tapi backend belum bisa dihubungi. Jalankan backend agar admin menerima permintaan dan bisa mengirim OTP ke email.',
     )
-    setEmail('')
-    setIdentity('')
-    setName('')
   }
 
   return (
@@ -84,11 +97,11 @@ export function ForgotPasswordPage({
             Reset Password
           </p>
           <h1 className="mt-3 text-3xl font-black text-[#5c3386]">
-            Kirim link reset ke email UNTAR
+            Kirim permintaan reset ke admin
           </h1>
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
             Masukkan email resmi, {activeRole.fieldLabel}, dan nama agar admin
-            bisa memverifikasi akun sebelum reset dikirim.
+            bisa memverifikasi akun sebelum kode OTP dikirim ke email resmi.
           </p>
 
           <div className="mt-6 grid grid-cols-2 rounded-[8px] bg-slate-100 p-1">
@@ -180,9 +193,10 @@ export function ForgotPasswordPage({
 
             <button
               type="submit"
-              className="h-14 rounded-[8px] bg-[#5c3386] px-5 text-base font-black text-white transition hover:bg-[#4f2b73]"
+              disabled={isSubmitting}
+              className="h-14 rounded-[8px] bg-[#5c3386] px-5 text-base font-black text-white transition hover:bg-[#4f2b73] disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              Kirim Link Reset Password
+              {isSubmitting ? 'Mengirim permintaan...' : 'Kirim Permintaan Reset Password'}
             </button>
           </form>
         </section>

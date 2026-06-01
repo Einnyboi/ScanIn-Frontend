@@ -14,6 +14,8 @@ export type PasswordResetRequest = {
   status: PasswordResetStatus
   createdAt: string
   sentAt?: string
+  resetUrl?: string
+  otpExpiresAt?: string
   emailStatus?: EmailStatus
   resetUrl?: string
 }
@@ -56,7 +58,7 @@ export const savePasswordResetRequests = (
   }
 }
 
-export const createPasswordResetRequest = ({
+export const createPasswordResetRequest = async ({
   identity,
   name,
   role,
@@ -73,7 +75,7 @@ export const createPasswordResetRequest = ({
     identity: identity.trim(),
     name: name.trim(),
     registeredEmail:
-      email?.trim().toLowerCase() || getResetEmailForIdentity(role, identity, name),
+      email?.trim().toLowerCase() || getResetEmailForIdentity(role, identity),
     status: 'Baru',
     createdAt: new Date().toISOString(),
   }
@@ -81,12 +83,22 @@ export const createPasswordResetRequest = ({
 
   savePasswordResetRequests(nextRequests, false)
 
-  void apiRequest<PasswordResetRequest>('/password-resets/request', {
-    method: 'POST',
-    body: JSON.stringify(request),
-  }).catch(() => undefined)
-
-  return request
+  try {
+    const backendRequest = await apiRequest<PasswordResetRequest>(
+      '/password-resets/request',
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+      },
+    )
+    const syncedRequests = loadPasswordResetRequests().map((item) =>
+      item.id === request.id ? { ...item, ...backendRequest } : item,
+    )
+    savePasswordResetRequests(syncedRequests, false)
+    return { request: backendRequest, synced: true }
+  } catch {
+    return { request, synced: false }
+  }
 }
 
 export const fetchPasswordResetRequestsFromBackend = async () => {
@@ -101,6 +113,9 @@ export const fetchPasswordResetRequestsFromBackend = async () => {
 
 export const markPasswordResetAsSent = async (id: string) => {
   const sentAt = new Date().toISOString()
+  const localRequest = loadPasswordResetRequests().find(
+    (request) => request.id === id,
+  )
   const optimisticRequests = loadPasswordResetRequests().map((request) =>
     request.id === id
       ? {
@@ -114,12 +129,24 @@ export const markPasswordResetAsSent = async (id: string) => {
   savePasswordResetRequests(optimisticRequests, false)
 
   try {
-    const backendRequest = await apiRequest<PasswordResetRequest>(
+    const requestOptions: RequestInit = {
+      method: 'PATCH',
+    }
+
+    if (localRequest) {
+      requestOptions.body = JSON.stringify(localRequest)
+    }
+
+    const backendRequest = await apiRequest<PasswordResetRequest | null>(
       `/password-resets/${id}/send`,
       {
         method: 'POST',
       },
     )
+
+    if (!backendRequest) {
+      throw new Error('Reset request not found')
+    }
 
     const syncedRequests = optimisticRequests.map((request) =>
       request.id === id ? { ...request, ...backendRequest } : request,
@@ -127,13 +154,17 @@ export const markPasswordResetAsSent = async (id: string) => {
 
     savePasswordResetRequests(syncedRequests, false)
     return syncedRequests
-  } catch {
+  } catch (error) {
     const failedRequests = optimisticRequests.map((request) =>
       request.id === id
         ? {
             ...request,
             status: 'Baru' as const,
             emailStatus: 'FAILED' as const,
+            emailError:
+              error instanceof Error
+                ? error.message
+                : 'Backend gagal mengirim email reset.',
           }
         : request,
     )
