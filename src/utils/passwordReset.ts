@@ -111,6 +111,10 @@ export const fetchPasswordResetRequestsFromBackend = async () => {
   }
 }
 
+export const fetchPasswordResetSmtpStatus = async () => {
+  return apiRequest<{ status: string; missing: string[] }>('/password-resets/smtp-status')
+}
+
 export const markPasswordResetAsSent = async (id: string) => {
   const sentAt = new Date().toISOString()
   const localRequest = loadPasswordResetRequests().find(
