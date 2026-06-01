@@ -6,8 +6,11 @@ import { LoginHelpPage } from './pages/LoginHelpPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import AdminDashboard from './pages/AdminDashboard'
 import { LecturerDashboard } from './pages/LecturerDashboard'
+import { LecturerNotificationsPage } from './pages/LecturerNotificationsPage'
 import { LecturerSessionPage } from './pages/LecturerSessionPage'
 import { StudentDashboard } from './pages/StudentDashboard'
+import { StudentNotificationsPage } from './pages/StudentNotificationsPage'
+import { StudentTicketPage } from './pages/StudentTicketPage'
 import { StatisticsPage } from './pages/StatisticsPage'
 
 import { loadSession, clearSession } from './lib/localSession'
@@ -15,17 +18,19 @@ import { loadSession, clearSession } from './lib/localSession'
 export default function App() {
   const session = loadSession()
   const role = session?.role?.toLowerCase()
+  const isLecturerRole =
+    role === 'pengajar' ||
+    role === 'lecturer' ||
+    role === 'dosen' ||
+    role === 'asdos'
+  const isStudentRole = role === 'student' || role === 'mahasiswa'
 
   const getDashboardByRole = () => {
     if (!role) return '/'
 
     if (role === 'admin') return '/admin'
-    if (role === 'lecturer' || role === 'dosen' || role === 'asdos') {
-      return '/lecturer'
-    }
-    if (role === 'student' || role === 'mahasiswa') {
-      return '/student'
-    }
+    if (isLecturerRole) return '/lecturer'
+    if (isStudentRole) return '/student'
 
     return '/'
   }
@@ -111,9 +116,22 @@ export default function App() {
         <Route
           path="/lecturer"
           element={
-            (role === 'lecturer' || role === 'dosen' || role === 'asdos') &&
-              session ? (
+            isLecturerRole && session ? (
               <LecturerDashboard session={session} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/lecturer/notifications"
+          element={
+            isLecturerRole && session ? (
+              <LecturerNotificationsPage
+                session={session}
+                onLogout={handleLogout}
+              />
             ) : (
               <Navigate to="/" replace />
             )
@@ -123,8 +141,7 @@ export default function App() {
         <Route
           path="/lecturer/session/:sessionId"
           element={
-            (role === 'lecturer' || role === 'dosen' || role === 'asdos') &&
-              session ? (
+            isLecturerRole && session ? (
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               <LecturerSessionPage {...({} as any)} />
             ) : (
@@ -136,8 +153,33 @@ export default function App() {
         <Route
           path="/student"
           element={
-            (role === 'student' || role === 'mahasiswa') && session ? (
+            isStudentRole && session ? (
               <StudentDashboard session={session} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/student/notifications"
+          element={
+            isStudentRole && session ? (
+              <StudentNotificationsPage
+                session={session}
+                onLogout={handleLogout}
+              />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/student/tickets/new"
+          element={
+            isStudentRole && session ? (
+              <StudentTicketPage session={session} onLogout={handleLogout} />
             ) : (
               <Navigate to="/" replace />
             )

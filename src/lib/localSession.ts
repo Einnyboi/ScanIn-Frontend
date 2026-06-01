@@ -1,4 +1,5 @@
 import type { LocalSession } from '../types/auth'
+import { normalizeSessionIdentity } from '../utils/identity'
 
 const sessionKey = 'scanin-local-session'
 const profileKey = 'scanin-local-profiles'
@@ -10,15 +11,18 @@ export const loadSession = (): LocalSession | null => {
 
   try {
     const storedSession = window.localStorage.getItem(sessionKey)
-    return storedSession ? (JSON.parse(storedSession) as LocalSession) : null
+    return storedSession
+      ? normalizeSessionIdentity(JSON.parse(storedSession) as LocalSession)
+      : null
   } catch {
     return null
   }
 }
 
 export const saveSession = (session: LocalSession) => {
-  window.localStorage.setItem(sessionKey, JSON.stringify(session))
-  saveLocalProfile(session)
+  const normalizedSession = normalizeSessionIdentity(session)
+  window.localStorage.setItem(sessionKey, JSON.stringify(normalizedSession))
+  saveLocalProfile(normalizedSession)
 }
 
 export const clearSession = () => {
@@ -36,7 +40,7 @@ export const loadLocalProfiles = () => {
       ? (JSON.parse(storedProfiles) as Record<string, LocalSession>)
       : {}
 
-    return Object.values(profiles)
+    return Object.values(profiles).map(normalizeSessionIdentity)
   } catch {
     return []
   }
