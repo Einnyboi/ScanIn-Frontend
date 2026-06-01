@@ -74,10 +74,11 @@ export function UsersView({ onUsersChange, users }: UsersViewProps) {
 
     try {
       if (isEditing) {
+        const oldUser = users.find((u) => getAdminUserKey(u) === editingKey)
         const updatedUser = await apiRequest<AdminUser>(
-          `/admin-users/${editingKey}`,
+          `/admin-users/${oldUser?.role}/${oldUser?.id}`,
           {
-            method: 'PUT',
+            method: 'PATCH',
             body: JSON.stringify(normalizedUser),
           },
         )
@@ -130,7 +131,7 @@ export function UsersView({ onUsersChange, users }: UsersViewProps) {
       confirmLabel: 'Hapus Pengguna',
       onConfirm: async () => {
         try {
-          await apiRequest(`/admin-users/${user.id}`, { method: 'DELETE' })
+          await apiRequest(`/admin-users/${user.role}/${user.id}`, { method: 'DELETE' })
           await onUsersChange(
             users.filter((item) => getAdminUserKey(item) !== key),
             false,
