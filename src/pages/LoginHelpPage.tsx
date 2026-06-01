@@ -66,7 +66,7 @@ export function LoginHelpPage({ initialRole, onBack }: LoginHelpPageProps) {
       setNotice(
         role === 'mahasiswa'
           ? 'Mahasiswa wajib memakai email @stu.untar.ac.id.'
-          : 'Pengajar dan admin wajib memakai email @untar.ac.id.',
+          : 'Pengajar wajib memakai email @untar.ac.id.',
       )
       return
     }

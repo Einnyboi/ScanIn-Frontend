@@ -1,5 +1,6 @@
 import { loadLocalProfiles } from '../lib/localSession'
 import type { Role } from '../types/auth'
+import { normalizeIdentity } from './identity'
 
 type ResolvedAccount = {
   identity: string
@@ -54,14 +55,22 @@ export const resolveLocalAccount = (
 
   if (storedProfile) {
     return {
-      identity: storedProfile.identity,
+      identity: normalizeIdentity({
+        role,
+        identity: storedProfile.identity,
+        email: cleanEmail,
+      }),
       name: storedProfile.name,
       email: cleanEmail,
     }
   }
 
   return {
-    identity: identityFromEmail(cleanEmail),
+    identity: normalizeIdentity({
+      role,
+      identity: identityFromEmail(cleanEmail),
+      email: cleanEmail,
+    }),
     name: nameFromEmail(cleanEmail, role),
     email: cleanEmail,
   }

@@ -1,9 +1,10 @@
 import type { Role } from '../types/auth'
 import { apiRequest } from './api'
+import { normalizeIdentity } from './identity'
 
 type BackendLoginResponse = {
   access_token: string
-  role: string
+  role?: string
 }
 
 type BackendUser = {
@@ -28,10 +29,12 @@ export const loginWithBackend = async (
   try {
     const login = await apiRequest<BackendLoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email: usernameOrEmail, password }),
+      body: JSON.stringify({
+        username: usernameOrEmail,
+        password,
+      }),
     })
 
-    // Simpan token ke localStorage biar request selanjutnya ter-auth
     localStorage.setItem('scanin_token', login.access_token)
 
     const user = await apiRequest<BackendUser>('/auth/me', {
@@ -40,23 +43,30 @@ export const loginWithBackend = async (
       },
     })
 
+    const role = mapBackendRole(user.role || login.role || '')
+
     return {
-      role: mapBackendRole(user.role || login.role),
-      identity: getIdentityFromEmail(user.username),
+      role,
+      identity: normalizeIdentity({
+        role,
+        identity: user.id,
+        email: user.username,
+      }),
       name: user.nama,
       email: user.username,
       token: login.access_token,
     }
-  } catch {
-    // Kalau backend gagal, return null — LoginPage fallback ke local account
+  } catch (error) {
+    console.error('Login backend gagal:', error)
     return null
   }
 }
 
 const mapBackendRole = (role: string): Role => {
-  if (role === 'ADMIN') return 'admin'
-  if (role === 'DOSEN' || role === 'ASDOS') return 'pengajar'
+  const normalizedRole = role.toUpperCase()
+
+  if (normalizedRole === 'ADMIN') return 'admin'
+  if (normalizedRole === 'DOSEN' || normalizedRole === 'ASDOS') return 'pengajar'
+
   return 'mahasiswa'
 }
-
-const getIdentityFromEmail = (email: string) => email.split('@')[0] || email

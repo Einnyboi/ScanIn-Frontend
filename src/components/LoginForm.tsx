@@ -46,20 +46,20 @@ export function LoginForm({
 
   return (
     <>
-      <div className="mb-6 sm:mb-8">
-        <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#7d2228]">
+      <div className="mb-5 sm:mb-7 xl:mb-8">
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#7d2228] sm:text-sm">
           Portal Presensi
         </p>
-        <h2 className="mt-3 text-2xl font-black leading-tight text-[#5c3386] sm:text-4xl">
+        <h2 className="mt-2 text-2xl font-black leading-tight text-[#5c3386] sm:mt-3 sm:text-3xl xl:text-4xl">
           Masuk ke akun kamu
         </h2>
-        <p className="mt-3 text-sm leading-6 text-slate-500">
+        <p className="mt-2 text-sm leading-6 text-slate-500 sm:mt-3">
           Pilih peran sesuai akun supaya akses dashboard langsung menyesuaikan.
         </p>
       </div>
 
       <div
-        className="grid grid-cols-3 rounded-lg bg-slate-100 p-1"
+        className="login-role-tabs grid grid-cols-3 rounded-[12px] bg-slate-100 p-1"
         role="tablist"
         aria-label="Pilih peran login"
       >
@@ -73,7 +73,7 @@ export function LoginForm({
               role="tab"
               aria-selected={isActive}
               onClick={() => onRoleChange(role.id)}
-          className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-[7px] px-2 text-[11px] font-bold transition duration-300 sm:flex-row sm:gap-2 sm:text-base ${
+              className={`flex min-h-[46px] flex-col items-center justify-center gap-1 rounded-[9px] px-1.5 text-[11px] font-black leading-tight transition duration-300 sm:min-h-12 sm:flex-row sm:gap-2 sm:px-3 sm:text-sm md:text-base ${
                 isActive
                   ? 'bg-[#5c3386] text-white shadow-lg shadow-[#5c3386]/25'
                   : 'text-slate-500 hover:bg-white hover:text-[#5c3386]'
@@ -86,11 +86,11 @@ export function LoginForm({
         })}
       </div>
 
-      <form className="mt-6 space-y-4 sm:mt-8 sm:space-y-5" onSubmit={onSubmit}>
+      <form className="mt-5 space-y-4 sm:mt-7 sm:space-y-5 xl:mt-8" onSubmit={onSubmit}>
         <div>
           <label
             htmlFor="account"
-            className="mb-2 block text-sm font-bold text-slate-700"
+            className="mb-2 block text-sm font-black text-slate-700"
           >
             Email UNTAR
           </label>
@@ -101,9 +101,9 @@ export function LoginForm({
             value={account}
             onChange={(event) => onAccountChange(event.target.value)}
             placeholder={getAccountPlaceholder(activeRole.id)}
-            className="h-14 w-full rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+            className="h-[52px] w-full rounded-[10px] border border-slate-200 bg-white px-4 text-[15px] font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12 sm:h-14 sm:text-base"
           />
-          <p className="mt-2 text-xs font-semibold text-slate-500">
+          <p className="mt-2 rounded-[9px] bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
             {getAccountDomainHelp(activeRole.id)}
           </p>
         </div>
@@ -111,7 +111,7 @@ export function LoginForm({
         <div>
           <label
             htmlFor="password"
-            className="mb-2 block text-sm font-bold text-slate-700"
+            className="mb-2 block text-sm font-black text-slate-700"
           >
             Password
           </label>
@@ -123,12 +123,12 @@ export function LoginForm({
               value={password}
               onChange={(event) => onPasswordChange(event.target.value)}
               placeholder="Masukkan password"
-              className="h-14 w-full rounded-lg border border-slate-200 bg-white px-4 pr-14 text-base font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+              className="h-[52px] w-full rounded-[10px] border border-slate-200 bg-white px-4 pr-14 text-[15px] font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12 sm:h-14 sm:text-base"
             />
             <button
               type="button"
               onClick={onTogglePassword}
-              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#5c3386]"
+              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-[9px] text-slate-500 transition hover:bg-slate-100 hover:text-[#5c3386]"
               aria-label={
                 showPassword ? 'Sembunyikan password' : 'Tampilkan password'
               }
@@ -153,11 +153,11 @@ export function LoginForm({
               </svg>
             </button>
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             {passwordRules.map((rule) => (
               <div
                 key={rule.id}
-                className={`rounded-lg px-3 py-2 text-xs font-black ${
+                className={`flex min-h-10 items-center rounded-[9px] px-3 py-2 text-[11px] font-black leading-tight sm:text-xs ${
                   rule.isValid
                     ? 'bg-emerald-50 text-emerald-700'
                     : 'bg-slate-100 text-slate-500'
@@ -171,23 +171,23 @@ export function LoginForm({
         </div>
 
         {error ? (
-          <p className="rounded-lg border border-[#7d2228]/20 bg-[#7d2228]/8 px-4 py-3 text-sm font-semibold text-[#7d2228]">
+          <p className="rounded-[10px] border border-[#7d2228]/20 bg-[#7d2228]/8 px-4 py-3 text-sm font-bold leading-6 text-[#7d2228]">
             {error}
           </p>
         ) : null}
 
-        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-3 pt-1 sm:pt-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-[#5c3386] focus:ring-[#5c3386]"
+              className="h-4 w-4 shrink-0 rounded border-slate-300 text-[#5c3386] focus:ring-[#5c3386]"
             />
             Ingat saya
           </label>
           <button
             type="button"
             onClick={onForgotPassword}
-            className="text-sm font-bold text-[#7d2228] transition hover:text-[#5c3386]"
+            className="shrink-0 text-sm font-black text-[#7d2228] transition hover:text-[#5c3386]"
           >
             Lupa password?
           </button>
@@ -195,13 +195,13 @@ export function LoginForm({
 
         <button
           type="submit"
-          className="mt-2 flex h-14 w-full items-center justify-center rounded-lg bg-[#5c3386] px-5 text-base font-black text-white shadow-xl shadow-[#5c3386]/25 transition duration-300 hover:-translate-y-0.5 hover:bg-[#4f2b73] focus:outline-none focus:ring-4 focus:ring-[#5c3386]/20"
+          className="mt-1 flex h-[52px] w-full items-center justify-center rounded-[10px] bg-[#5c3386] px-5 text-sm font-black text-white shadow-xl shadow-[#5c3386]/25 transition duration-300 hover:-translate-y-0.5 hover:bg-[#4f2b73] focus:outline-none focus:ring-4 focus:ring-[#5c3386]/20 sm:mt-2 sm:h-14 sm:text-base"
         >
           {submitLabel}
         </button>
       </form>
 
-      <p className="mt-8 text-center text-sm font-semibold text-slate-500">
+      <p className="mt-6 text-center text-sm font-semibold leading-6 text-slate-500 sm:mt-8">
         Butuh bantuan akses?{' '}
         <button
           type="button"
