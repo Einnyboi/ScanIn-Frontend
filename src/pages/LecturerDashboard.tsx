@@ -289,21 +289,6 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     }
   }
 
-  const handleTicketNotificationClick = () => {
-    setScannerMessage(
-      pendingTicketCount
-        ? `${pendingTicketCount} tiket koreksi menunggu keputusan pengajar.`
-        : 'Belum ada permohonan koreksi baru.',
-    )
-
-    const ticketPanel = document.getElementById('lecturer-ticket-panel')
-
-    if (ticketPanel) {
-      ticketPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      ticketPanel.focus({ preventScroll: true })
-    }
-  }
-
   if (activeMetric) {
     return (
       <StatisticsPage
@@ -330,13 +315,13 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
   return (
     <DashboardShell
       notificationCount={pendingTicketCount}
+      notificationHref="/lecturer/notifications"
       notificationLabel="Tiket Baru"
       onLogout={onLogout}
-      onNotificationClick={handleTicketNotificationClick}
       session={session}
     >
       <div className="space-y-6">
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid grid-cols-3 gap-2 sm:gap-4">
           <StatCard
             label="Mahasiswa Hadir"
             value={`${activeStudents}`}
@@ -402,7 +387,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
                         type="button"
                         onClick={() => handleOpenCourse(course)}
                         disabled={!canOpenSession}
-                        className={`flex h-11 items-center justify-center rounded-[8px] px-4 text-sm font-black transition ${
+                        className={`flex h-11 w-full items-center justify-center rounded-[8px] px-4 text-sm font-black transition sm:w-auto ${
                           canOpenSession
                             ? 'bg-[#5c3386] text-white hover:bg-[#4f2b73]'
                             : 'bg-slate-100 text-slate-400'
