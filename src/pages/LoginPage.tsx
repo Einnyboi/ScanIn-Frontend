@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 
 import AdminDashboard from './AdminDashboard'
 import { BrandPanel } from '../components/BrandPanel'
@@ -7,6 +7,7 @@ import { LecturerDashboard } from './LecturerDashboard'
 import { StudentDashboard } from './StudentDashboard'
 import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { LoginHelpPage } from './LoginHelpPage'
+import { ResetPasswordPage } from './ResetPasswordPage'
 import { clearSession, loadSession, saveSession } from '../lib/localSession'
 import { getRoleOption } from '../lib/roleOptions'
 import type { LocalSession, Role } from '../types/auth'
@@ -19,9 +20,20 @@ export function LoginPage() {
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [authView, setAuthView] = useState<'login' | 'forgot' | 'help'>('login')
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'help' | 'reset'>('login')
+  const [resetToken, setResetToken] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [session, setSession] = useState<LocalSession | null>(() => loadSession())
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    
+    if (window.location.pathname === '/reset-password' && token) {
+      setResetToken(token)
+      setAuthView('reset')
+    }
+  }, [])
 
   const activeRole = useMemo(() => getRoleOption(selectedRole), [selectedRole])
 
@@ -119,6 +131,18 @@ export function LoginPage() {
       <LoginHelpPage
         initialRole={selectedRole}
         onBack={() => setAuthView('login')}
+      />
+    )
+  }
+
+  if (authView === 'reset' && resetToken) {
+    return (
+      <ResetPasswordPage
+        token={resetToken}
+        onBack={() => {
+          window.history.replaceState({}, '', '/')
+          setAuthView('login')
+        }}
       />
     )
   }

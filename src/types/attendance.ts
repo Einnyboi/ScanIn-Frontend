@@ -27,6 +27,7 @@ export type CorrectionTicket = {
   date: string
   reason: string
   status: 'Menunggu' | 'Disetujui' | 'Ditolak'
+  submittedAt?: string
 }
 
 export type QrPayload = {

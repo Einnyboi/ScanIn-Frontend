@@ -17,15 +17,7 @@ export type PasswordResetRequest = {
   resetUrl?: string
   otpExpiresAt?: string
   emailStatus?: EmailStatus
-  emailError?: string
-}
-
-export type PasswordResetSmtpStatus = {
-  status: 'READY' | 'NOT_CONFIGURED'
-  host: string | null
-  port: number | null
-  from: string | null
-  missing?: string[]
+  resetUrl?: string
 }
 
 export const passwordResetChangedEvent = 'scanin-password-resets-changed'
@@ -147,7 +139,9 @@ export const markPasswordResetAsSent = async (id: string) => {
 
     const backendRequest = await apiRequest<PasswordResetRequest | null>(
       `/password-resets/${id}/send`,
-      requestOptions,
+      {
+        method: 'POST',
+      },
     )
 
     if (!backendRequest) {
@@ -181,26 +175,9 @@ export const markPasswordResetAsSent = async (id: string) => {
 
 }
 
-export const fetchPasswordResetSmtpStatus = () =>
-  apiRequest<PasswordResetSmtpStatus>('/password-resets/smtp-status')
-
-export const resetPasswordWithOtp = async ({
-  newPassword,
-  otp,
-  token,
-}: {
-  newPassword: string
-  otp: string
-  token: string
-}) => {
-  return apiRequest<{ success: boolean }>(
-    `/password-resets/${encodeURIComponent(token)}/reset`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        otp,
-        password: newPassword,
-      }),
-    },
-  )
+export const completePasswordReset = async (id: string, newPassword: string) => {
+  return apiRequest(`/password-resets/${id}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ password: newPassword }),
+  })
 }

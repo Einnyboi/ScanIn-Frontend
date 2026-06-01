@@ -16,6 +16,7 @@ import type { LocalSession } from '../types/auth'
 import {
   fetchScanRecordsFromBackend,
   saveStoredScanRecord,
+  scanRecordsChangedEvent,
 } from '../utils/attendanceStorage'
 import {
   saveAttendanceNotification,
@@ -30,10 +31,12 @@ import {
 } from '../utils/schedule'
 import {
   fetchSchedulesFromBackend,
+  scheduleChangedEvent,
 } from '../utils/schedules'
 import {
   fetchTicketsFromBackend,
   updateStoredTicket,
+  ticketsChangedEvent,
 } from '../utils/tickets'
 
 type LecturerDashboardProps = {
@@ -73,21 +76,48 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
   }, [])
 
   useEffect(() => {
-    void fetchScanRecordsFromBackend().then((backendRecords) => {
-      setScanRecords(backendRecords ?? [])
-    })
+    const reload = () => {
+      void fetchScanRecordsFromBackend().then((backendRecords) => {
+        setScanRecords(backendRecords ?? [])
+      })
+    }
+    reload()
+    window.addEventListener('storage', reload)
+    window.addEventListener(scanRecordsChangedEvent, reload)
+    return () => {
+      window.removeEventListener('storage', reload)
+      window.removeEventListener(scanRecordsChangedEvent, reload)
+    }
   }, [])
 
   useEffect(() => {
-    void fetchSchedulesFromBackend().then((backendSchedules) => {
-      setSchedules(backendSchedules ?? [])
-    })
+    const reload = () => {
+      void fetchSchedulesFromBackend().then((backendSchedules) => {
+        setSchedules(backendSchedules ?? [])
+      })
+    }
+    reload()
+    window.addEventListener('storage', reload)
+    window.addEventListener(scheduleChangedEvent, reload)
+    return () => {
+      window.removeEventListener('storage', reload)
+      window.removeEventListener(scheduleChangedEvent, reload)
+    }
   }, [])
 
   useEffect(() => {
-    void fetchTicketsFromBackend([]).then((backendTickets) => {
-      setTickets(backendTickets ?? [])
-    })
+    const reload = () => {
+      void fetchTicketsFromBackend([]).then((backendTickets) => {
+        setTickets(backendTickets ?? [])
+      })
+    }
+    reload()
+    window.addEventListener('storage', reload)
+    window.addEventListener(ticketsChangedEvent, reload)
+    return () => {
+      window.removeEventListener('storage', reload)
+      window.removeEventListener(ticketsChangedEvent, reload)
+    }
   }, [])
 
   const approvedTickets = tickets.filter((ticket) => ticket.status === 'Disetujui')

@@ -1,60 +1,25 @@
 import {
+  CalendarDays,
+  ClipboardList,
+  FileText,
+  LayoutDashboard,
+  Ticket as TicketIcon,
+  Users,
+  type LucideIcon
+} from 'lucide-react'
+import {
   useEffect,
   useMemo,
-  useState,
-  type FormEvent,
-  type ReactNode,
+  useState
 } from 'react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
-import {
-  ArrowLeft,
-  Bell,
-  CalendarDays,
-  CheckCircle2,
-  ChevronRight,
-  ClipboardList,
-  Clock,
-  Download,
-  FileText,
-  KeyRound,
-  LayoutDashboard,
-  LogOut,
-  Pencil,
-  Plus,
-  Radio,
-  Search,
-  Shield,
-  Ticket as TicketIcon,
-  Trash2,
-  TrendingUp,
-  Users,
-  X,
-  XCircle,
-  type LucideIcon,
-} from 'lucide-react'
 
-import { loadLocalProfiles } from '../lib/localSession'
-import type { CorrectionTicket, CourseSchedule, ScanRecord } from '../types/attendance'
+import type { CorrectionTicket, CourseSchedule } from '../types/attendance'
 import type { LocalSession } from '../types/auth'
+import { buildAdminAnalytics } from '../utils/adminDashboard'
 import {
-  adminUsersChangedEvent,
   fetchAdminUsersFromBackend,
-  getAdminUserKey,
-  loadAdminUsers,
   saveAdminUsers,
-  type AdminUser,
-  type AdminUserRole,
+  type AdminUser
 } from '../utils/adminUsers'
 import {
   fetchScanRecordsFromBackend,
@@ -68,27 +33,41 @@ import {
   type SupportComplaint,
 } from '../utils/complaints'
 import {
+  fetchPasswordResetRequestsFromBackend,
+  loadPasswordResetRequests,
+  markPasswordResetAsSent,
+  passwordResetChangedEvent,
+  type PasswordResetRequest,
+} from '../utils/passwordReset'
+import { isPasswordResetActionable } from '../utils/adminDashboard'
+import {
   createGeneratedReport,
   fetchReportsFromBackend,
-  formatReportDate,
   loadGeneratedReports,
-  reportToCsv,
   reportsChangedEvent,
   saveGeneratedReports,
   type GeneratedReport,
-  type ReportKind,
+  type ReportKind
 } from '../utils/reports'
 import {
-  createScheduleId,
   fetchSchedulesFromBackend,
   loadSchedules,
   saveSchedules,
-  scheduleChangedEvent,
+  scheduleChangedEvent
 } from '../utils/schedules'
 import {
   fetchTicketsFromBackend,
+  ticketsChangedEvent,
   updateStoredTicket,
 } from '../utils/tickets'
+import { AttendanceView } from './admin-dashboard/AttendanceView'
+import { DashboardView } from './admin-dashboard/DashboardView'
+import { NotificationsView } from './admin-dashboard/NotificationsView'
+import { ReportsView } from './admin-dashboard/ReportsView'
+import { ScheduleView } from './admin-dashboard/ScheduleView'
+import { TicketsView } from './admin-dashboard/TicketsView'
+import { UsersView } from './admin-dashboard/UsersView'
+import { AdminSidebar, AdminNoticeBanner } from './admin-dashboard/shared'
 import {
   fetchPasswordResetSmtpStatus,
   fetchPasswordResetRequestsFromBackend,
@@ -116,27 +95,13 @@ type DeleteConfirmation = {
   title: string
   description: string
   confirmLabel: string
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
 }
 
 type AdminNotice = {
   message: string
   tone: 'danger' | 'success' | 'warning'
 }
-
-const purple = '#5c3386'
-const maroon = '#7d2228'
-const amber = '#edae36'
-const adminDeletePin = '1234'
-
-const menuItems: Array<{ id: AdminView; label: string; icon: LucideIcon }> = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'users', label: 'Pengguna', icon: Users },
-  { id: 'schedule', label: 'Jadwal', icon: CalendarDays },
-  { id: 'attendance', label: 'Presensi', icon: ClipboardList },
-  { id: 'reports', label: 'Laporan', icon: FileText },
-  { id: 'tickets', label: 'Tiket', icon: TicketIcon },
-]
 
 const pageMeta: Record<
   AdminView,
@@ -179,84 +144,12 @@ const pageMeta: Record<
   },
 }
 
-const defaultAdminUsers: AdminUser[] = [
-  {
-    id: '535240187',
-    name: "Naisya Yuen Ra'af",
-    email: 'naisya@stu.untar.ac.id',
-    role: 'Mahasiswa',
-    status: 'Aktif',
-  },
-  {
-    id: '535240156',
-    name: 'Ahmad Rizki',
-    email: 'ahmad@stu.untar.ac.id',
-    role: 'Mahasiswa',
-    status: 'Aktif',
-  },
-  {
-    id: '198503152010121001',
-    name: 'Dr. Ahmad Santoso',
-    email: 'ahmad.santoso@untar.ac.id',
-    role: 'Pengajar',
-    status: 'Aktif',
-  },
-  {
-    id: '198808122015032002',
-    name: 'Ir. Siti Nurhaliza',
-    email: 'siti.nurhaliza@untar.ac.id',
-    role: 'Pengajar',
-    status: 'Aktif',
-  },
-  {
-    id: 'admin-fti',
-    name: 'Admin Fakultas',
-    email: 'admin.fti@untar.ac.id',
-    role: 'Admin',
-    status: 'Aktif',
-  },
-]
-
-type MonthlyAttendancePoint = {
-  month: string
-  percentage: number
-  hadir: number
-  terlambat: number
-  alpha: number
-}
-
-type DaySessionsPoint = {
-  day: string
-  sessions: number
-}
-
-type ClassPerformancePoint = {
-  course: string
-  percentage: number
-}
-
-type AdminAnalytics = {
-  monthlyAttendance: MonthlyAttendancePoint[]
-  sessionsPerDay: DaySessionsPoint[]
-  classPerformance: ClassPerformancePoint[]
-  statusDistribution: Array<{ name: string; value: number; color: string }>
-  attendanceRate: number
-  lateRate: number
-  absentRate: number
-  attendanceTrend: string
-  lateTrend: string
-  absentTrend: string
-  totalSessions: number
-}
-
 export default function AdminDashboard({
   session,
   onLogout,
 }: AdminDashboardProps) {
   const [activeView, setActiveView] = useState<AdminView>('dashboard')
-  const [users, setUsers] = useState<AdminUser[]>(() =>
-    loadAdminUsers(buildAdminUsers(loadLocalProfiles())),
-  )
+  const [users, setUsers] = useState<AdminUser[]>([])
   const [schedules, setSchedules] = useState<CourseSchedule[]>(() =>
     loadSchedules(),
   )
@@ -292,21 +185,11 @@ export default function AdminDashboard({
   }, [])
 
   useEffect(() => {
-    const fallbackUsers = buildAdminUsers(loadLocalProfiles())
-    const reload = () => setUsers(loadAdminUsers(fallbackUsers))
-
-    void fetchAdminUsersFromBackend(fallbackUsers).then((backendUsers) => {
+    void fetchAdminUsersFromBackend().then((backendUsers) => {
       if (backendUsers) {
         setUsers(backendUsers)
       }
     })
-
-    window.addEventListener('storage', reload)
-    window.addEventListener(adminUsersChangedEvent, reload)
-    return () => {
-      window.removeEventListener('storage', reload)
-      window.removeEventListener(adminUsersChangedEvent, reload)
-    }
   }, [])
 
   useEffect(() => {
@@ -334,19 +217,17 @@ export default function AdminDashboard({
         }
       })
     }
-
-    void fetchTicketsFromBackend([]).then((backendTickets) => {
-      if (backendTickets) {
-        setTickets(backendTickets)
-      }
-    })
-
+    
+    reload()
+    
     window.addEventListener('storage', reload)
+    window.addEventListener(ticketsChangedEvent, reload)
     return () => {
       window.removeEventListener('storage', reload)
+      window.removeEventListener(ticketsChangedEvent, reload)
     }
   }, [])
-
+  
   useEffect(() => {
     const reload = () => setReports(loadGeneratedReports())
 
@@ -415,9 +296,14 @@ export default function AdminDashboard({
     }
   }, [])
 
-  const handleUsersChange = (nextUsers: AdminUser[]) => {
-    setUsers(nextUsers)
-    saveAdminUsers(nextUsers)
+  const handleUsersChange = async (nextUsers: AdminUser[], sync = true) => {
+    if (sync) {
+      // This path is no longer recommended, but kept for safety.
+      const backendUsers = await saveAdminUsers(nextUsers)
+      setUsers(backendUsers)
+    } else {
+      setUsers(nextUsers)
+    }
   }
 
   const handleSchedulesChange = (nextSchedules: CourseSchedule[]) => {
@@ -487,7 +373,7 @@ export default function AdminDashboard({
       setAdminNotice({
         tone: 'warning',
         message:
-          `Email OTP belum dapat dikirim karena konfigurasi SMTP belum lengkap.${missingConfig}`,
+          request.resetUrl ? `SMTP belum aktif. Namun link reset berhasil dibuat: ${request.resetUrl} (Silakan copy dan bagikan manual ke pengguna)` : 'Permintaan tercatat, tapi SMTP backend belum dikonfigurasi jadi email asli belum terkirim.',
       })
       return
     }
@@ -513,20 +399,9 @@ export default function AdminDashboard({
       <main className="min-w-0">
         <div className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-5 py-3 backdrop-blur sm:px-7">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <nav
-              className="flex items-center gap-3 text-sm font-black text-slate-400"
-              aria-label="Breadcrumb admin"
-            >
-              <span className="flex h-9 w-32 items-center">
-                <img
-                  src="/logo-fti.png"
-                  alt="Logo FTI UNTAR"
-                  className="max-h-full w-full object-contain"
-                />
-              </span>
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            <nav className="flex items-center gap-3 text-sm font-black text-slate-400" aria-label="Breadcrumb admin">
+              <span className="flex h-9 w-32 items-center"><img src="/logo-fti.png" alt="Logo FTI UNTAR" className="max-h-full w-full object-contain" /></span>
               <span>Admin</span>
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
               <span className="text-[#5c3386]">{meta.breadcrumb}</span>
             </nav>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -563,7 +438,6 @@ export default function AdminDashboard({
         </div>
 
         <div className="px-5 py-6 pb-20 sm:px-7 lg:px-8 xl:px-10">
-        {adminNotice ? (
           <AdminNoticeBanner
             notice={adminNotice}
             onClose={() => setAdminNotice(null)}
@@ -1556,102 +1430,15 @@ function ScheduleView({
                 value={scheduleTime.end}
                 onChange={(value) => handleScheduleTimeChange('end', value)}
               />
-            </div>
-
-            <Input
-              label="Ruangan"
-              value={formData.room}
-              placeholder="Contoh: B-204"
-              inputClassName="h-16 text-base sm:text-lg"
-              onChange={(value) => setFormData({ ...formData, room: value })}
-            />
-            <Input
-              label="Kapasitas"
-              type="number"
-              value={String(formData.students)}
-              placeholder="30"
-              inputClassName="h-16 text-base sm:text-lg"
-              onChange={(value) =>
-                setFormData({ ...formData, students: Number(value) })
-              }
-            />
-
-            <Select
-              label="Status Sesi"
-              value={formData.status}
-              options={['active', 'upcoming', 'closed']}
-              className="lg:col-span-2"
-              selectClassName="h-16 text-base sm:text-lg"
-              onChange={(value) =>
-                setFormData({
-                  ...formData,
-                  status: value as CourseSchedule['status'],
-                })
-              }
-            />
-
-            {notice ? (
-              <p className="rounded-[8px] bg-[#5c3386]/8 px-4 py-3 text-sm font-bold text-[#5c3386] lg:col-span-2">
-                {notice}
-              </p>
-            ) : null}
-
-            <div className="mt-2 grid gap-4 sm:grid-cols-2 lg:col-span-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setPageMode('list')
-                  setFormData(createEmptySchedule())
-                  setEditingId('')
-                  setNotice('')
-                }}
-                className="h-14 rounded-[8px] border border-slate-300 px-5 text-base font-black text-slate-700 transition hover:border-[#5c3386] hover:text-[#5c3386]"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                className="h-14 rounded-[8px] bg-[#5c3386] px-5 text-base font-black text-white shadow-lg shadow-[#5c3386]/20 transition hover:bg-[#4f2b73]"
-              >
-                {isEditing ? 'Simpan Perubahan' : 'Simpan'}
-              </button>
-            </div>
-          </form>
-        </section>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-4">
-        <SimpleStat label="Total Jadwal" value={schedules.length} />
-        <SimpleStat label="Mata Kuliah" tone="purple" value={schedules.length} />
-        <SimpleStat
-          label="Ruangan Aktif"
-          tone="green"
-          value={new Set(schedules.map((item) => item.room)).size}
-        />
-        <SimpleStat
-          label="Pengajar Aktif"
-          tone="blue"
-          value={new Set(schedules.map((item) => item.lecturer)).size}
-        />
-      </section>
-
-      <AdminCard>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative max-w-xl flex-1">
-            <Search
-              className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
-              aria-hidden="true"
-            />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari jadwal, jam, dosen, atau ruangan..."
-              className="h-12 w-full rounded-[8px] border border-slate-200 pl-12 pr-4 font-semibold outline-none focus:border-[#5c3386]"
-            />
+            )}
+            {activeView === 'users' && <UsersView users={users} onUsersChange={handleUsersChange} />}
+            {activeView === 'schedule' && <ScheduleView schedules={schedules} users={users} onSchedulesChange={handleSchedulesChange} />}
+            {activeView === 'attendance' && <AttendanceView scanRecords={scanRecords} />}
+            {activeView === 'reports' && <ReportsView analytics={analytics} onGenerateReport={handleGenerateReport} reports={reports} />}
+            {activeView === 'tickets' && <TicketsView tickets={tickets} onTicketAction={handleTicketAction} />}
+            {activeView === 'notifications' && (
+              <NotificationsView complaints={complaints} onSendReset={handleSendReset} onTicketAction={handleTicketAction} passwordRequests={passwordRequests} tickets={tickets} />
+            )}
           </div>
           <button
             type="button"
