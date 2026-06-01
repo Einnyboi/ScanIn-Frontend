@@ -481,13 +481,13 @@ export default function AdminDashboard({
     if (request.emailStatus === 'SMTP_NOT_CONFIGURED') {
       const smtpStatus = await fetchPasswordResetSmtpStatus().catch(() => null)
       const missingConfig = smtpStatus?.missing?.length
-        ? ` Yang belum lengkap: ${smtpStatus.missing.join(', ')}.`
+        ? ` Lengkapi ${smtpStatus.missing.join(', ')} di file .env backend, lalu restart backend.`
         : ''
 
       setAdminNotice({
         tone: 'warning',
         message:
-          `Permintaan tercatat, tapi SMTP backend belum siap jadi email OTP belum terkirim.${missingConfig}`,
+          `Email OTP belum dapat dikirim karena konfigurasi SMTP belum lengkap.${missingConfig}`,
       })
       return
     }
@@ -502,7 +502,7 @@ export default function AdminDashboard({
   }
 
   return (
-    <div className="admin-shell min-h-screen bg-[#f5f6fa] text-slate-950 md:grid md:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
+    <div className="admin-shell min-h-screen bg-[#f5f6fa] text-slate-950 md:grid md:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
       <AdminSidebar
         activeView={activeView}
         onLogout={onLogout}
@@ -530,21 +530,24 @@ export default function AdminDashboard({
               <span className="text-[#5c3386]">{meta.breadcrumb}</span>
             </nav>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <div className="flex h-11 items-center gap-2 rounded-[8px] border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600">
+              <div
+                className="flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-[8px] border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 sm:min-w-fit sm:gap-2"
+                aria-label={`${formatAdminDate(currentTime)} ${formatAdminTime(currentTime)}`}
+              >
                 <CalendarDays
-                  className="h-4 w-4 text-[#5c3386]"
+                  className="hidden h-4 w-4 text-[#5c3386] sm:block"
                   aria-hidden="true"
                 />
                 <span className="hidden sm:inline">
                   {formatAdminDate(currentTime)}
                 </span>
                 <Clock className="h-4 w-4 text-[#7d2228]" aria-hidden="true" />
-                <span>{formatAdminTime(currentTime)}</span>
+                <span className="tabular-nums">{formatAdminTime(currentTime)}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveView('notifications')}
-                className="relative flex h-11 items-center justify-center rounded-[8px] border border-slate-200 bg-white px-3 text-sm font-black text-slate-600 transition hover:border-[#5c3386]/40 hover:text-[#5c3386]"
+                className="relative flex h-11 w-11 items-center justify-center rounded-[8px] border border-slate-200 bg-white px-0 text-sm font-black text-slate-600 transition hover:border-[#5c3386]/40 hover:text-[#5c3386] sm:w-auto sm:px-3"
                 aria-label={`${adminNotificationCount} notifikasi admin`}
               >
                 <Bell className="h-5 w-5" aria-hidden="true" />
@@ -642,15 +645,15 @@ function AdminSidebar({
   session: LocalSession
 }) {
   return (
-    <aside className="sticky top-0 z-30 flex flex-col bg-[#573485] text-white shadow-xl shadow-[#28183d]/15 md:h-dvh md:max-h-dvh md:overflow-hidden">
-      <div className="shrink-0 border-b border-white/14 px-4 py-4 md:px-6 md:py-6">
+    <aside className="admin-sidebar z-30 flex flex-col bg-[#573485] text-white shadow-xl shadow-[#28183d]/15 md:sticky md:top-0 md:h-screen md:max-h-screen md:overflow-hidden">
+      <div className="shrink-0 border-b border-white/14 px-4 py-4 md:px-5 md:py-5">
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-white/14 text-base font-black tracking-tight text-white shadow-lg shadow-[#2b1844]/20 ring-1 ring-white/10 md:h-14 md:w-14 md:text-xl">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-white/14 text-base font-black tracking-tight text-white shadow-lg shadow-[#2b1844]/20 ring-1 ring-white/10 md:h-12 md:w-12 md:text-lg">
               FTI
             </div>
             <div className="min-w-0">
-              <p className="truncate text-xl font-black leading-none tracking-tight text-white md:text-2xl">
+              <p className="truncate text-xl font-black leading-none tracking-tight text-white md:text-[1.55rem]">
                 FTI UNTAR
               </p>
               <p className="mt-1 text-sm font-semibold text-white/65">
@@ -661,18 +664,19 @@ function AdminSidebar({
           <button
             type="button"
             onClick={onLogout}
-            className="flex h-11 items-center justify-center gap-2 rounded-[8px] border border-white/20 px-4 text-sm font-black text-white transition hover:bg-white/10 md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-[8px] border border-white/20 px-0 text-sm font-black text-white transition hover:bg-white/10 md:hidden"
+            aria-label="Keluar"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
-            Keluar
+            <span className="sr-only">Keluar</span>
           </button>
         </div>
       </div>
 
-      <div className="hidden shrink-0 border-b border-white/14 px-5 py-5 md:block md:px-6">
-        <div className="flex items-center gap-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#7d2228] text-white shadow-xl shadow-[#321a4c]/25">
-            <Shield className="h-8 w-8" aria-hidden="true" />
+      <div className="hidden shrink-0 border-b border-white/14 px-5 py-5 md:block">
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#7d2228] text-white shadow-xl shadow-[#321a4c]/25">
+            <Shield className="h-7 w-7" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <p className="truncate text-xl font-black text-white">
@@ -685,7 +689,7 @@ function AdminSidebar({
         </div>
       </div>
 
-      <nav className="flex gap-2 overflow-x-auto px-4 py-3 md:flex-1 md:flex-col md:overflow-hidden md:px-5 md:py-5">
+      <nav className="flex gap-2 overflow-x-auto px-4 py-3 md:min-h-0 md:flex-1 md:flex-col md:overflow-hidden md:px-4 md:py-5">
         <p className="hidden px-3 pb-2 text-xs font-black uppercase tracking-[0.14em] text-white/42 md:block">
           Menu Utama
         </p>
@@ -698,13 +702,13 @@ function AdminSidebar({
               key={item.id}
               type="button"
               onClick={() => onViewChange(item.id)}
-              className={`relative flex h-11 shrink-0 items-center justify-start gap-2 rounded-[8px] px-3 text-left text-sm font-black transition md:h-12 md:w-full md:gap-4 md:px-5 md:text-lg ${
+              className={`relative flex h-11 shrink-0 items-center justify-start gap-2 rounded-[8px] px-3 text-left text-sm font-black transition md:h-11 md:w-full md:gap-3 md:px-4 md:text-base ${
                 isActive
                   ? 'bg-white/14 text-white shadow-lg shadow-[#321a4c]/20'
                   : 'text-white/64 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <Icon className="h-5 w-5 shrink-0 md:h-6 md:w-6" aria-hidden="true" />
+              <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
               <span>{item.label}</span>
               {isActive ? (
                 <span className="absolute right-3 h-2 w-2 rounded-full bg-white/70 md:right-5 md:h-2.5 md:w-2.5" />
@@ -718,9 +722,9 @@ function AdminSidebar({
         <button
           type="button"
           onClick={onLogout}
-          className="flex h-11 w-full items-center gap-4 rounded-[8px] px-5 text-left text-lg font-black text-white/75 transition hover:bg-white/10 hover:text-white"
+          className="flex h-11 w-full items-center gap-3 rounded-[8px] px-4 text-left text-base font-black text-white/75 transition hover:bg-white/10 hover:text-white"
         >
-          <LogOut className="h-6 w-6" aria-hidden="true" />
+          <LogOut className="h-5 w-5" aria-hidden="true" />
           <span>Keluar</span>
         </button>
       </div>
@@ -808,35 +812,39 @@ function DashboardView({
 
       <section className="grid gap-5 xl:grid-cols-2">
         <AdminCard title="Tren Kehadiran Bulanan">
-          <ResponsiveContainer width="100%" height={270}>
-            <LineChart data={analytics.monthlyAttendance}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
-              <Legend />
-              <Line
-                dataKey="percentage"
-                name="Persentase (%)"
-                stroke={purple}
-                strokeWidth={3}
-                type="monotone"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <AdminChartFrame>
+            <ResponsiveContainer width="100%" height={270}>
+              <LineChart data={analytics.monthlyAttendance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis domain={[0, 100]} />
+                <Tooltip />
+                <Legend />
+                <Line
+                  dataKey="percentage"
+                  name="Persentase (%)"
+                  stroke={purple}
+                  strokeWidth={3}
+                  type="monotone"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </AdminChartFrame>
         </AdminCard>
 
         <AdminCard title="Sesi Per Hari (Minggu Ini)">
-          <ResponsiveContainer width="100%" height={270}>
-            <BarChart data={analytics.sessionsPerDay}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="sessions" fill={purple} name="Jumlah Sesi" />
-            </BarChart>
-          </ResponsiveContainer>
+          <AdminChartFrame>
+            <ResponsiveContainer width="100%" height={270}>
+              <BarChart data={analytics.sessionsPerDay}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="day" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="sessions" fill={purple} name="Jumlah Sesi" />
+              </BarChart>
+            </ResponsiveContainer>
+          </AdminChartFrame>
         </AdminCard>
       </section>
 
@@ -1196,7 +1204,7 @@ function UsersView({
 
     setDeleteTarget({
       title: 'Konfirmasi Hapus Pengguna',
-      description: `Data ${user.name} (${user.id}) akan dihapus dari daftar ${user.role}. Masukkan PIN admin 4 angka untuk melanjutkan.`,
+      description: `Data ${user.name} (${user.id}) akan dihapus dari daftar ${user.role}.`,
       confirmLabel: 'Hapus Pengguna',
       onConfirm: () => {
         onUsersChange(users.filter((item) => getAdminUserKey(item) !== key))
@@ -1472,7 +1480,7 @@ function ScheduleView({
   const handleDeleteRequest = (schedule: CourseSchedule) => {
     setDeleteTarget({
       title: 'Konfirmasi Hapus Jadwal',
-      description: `Jadwal ${schedule.title} (${schedule.time}, ${schedule.room}) akan dihapus dari mahasiswa dan pengajar. Masukkan PIN admin 4 angka untuk melanjutkan.`,
+      description: `Jadwal ${schedule.title} (${schedule.time}, ${schedule.room}) akan dihapus dari mahasiswa dan pengajar.`,
       confirmLabel: 'Hapus Jadwal',
       onConfirm: () => {
         onSchedulesChange(schedules.filter((item) => item.id !== schedule.id))
@@ -1885,35 +1893,39 @@ function ReportsView({
 
       <section className="grid gap-5 xl:grid-cols-2">
         <AdminCard title="Tren Kehadiran Bulanan">
-          <ResponsiveContainer width="100%" height={270}>
-            <BarChart data={analytics.monthlyAttendance}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="hadir" fill={purple} name="Hadir" />
-              <Bar dataKey="terlambat" fill={amber} name="Terlambat" />
-              <Bar dataKey="alpha" fill={maroon} name="Alpha" />
-            </BarChart>
-          </ResponsiveContainer>
+          <AdminChartFrame>
+            <ResponsiveContainer width="100%" height={270}>
+              <BarChart data={analytics.monthlyAttendance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="hadir" fill={purple} name="Hadir" />
+                <Bar dataKey="terlambat" fill={amber} name="Terlambat" />
+                <Bar dataKey="alpha" fill={maroon} name="Alpha" />
+              </BarChart>
+            </ResponsiveContainer>
+          </AdminChartFrame>
         </AdminCard>
         <AdminCard title="Performa Per Mata Kuliah">
-          <ResponsiveContainer width="100%" height={270}>
-            <LineChart data={analytics.classPerformance}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="course" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
-              <Legend />
-              <Line
-                dataKey="percentage"
-                name="Persentase (%)"
-                stroke={purple}
-                strokeWidth={3}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <AdminChartFrame>
+            <ResponsiveContainer width="100%" height={270}>
+              <LineChart data={analytics.classPerformance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="course" />
+                <YAxis domain={[0, 100]} />
+                <Tooltip />
+                <Legend />
+                <Line
+                  dataKey="percentage"
+                  name="Persentase (%)"
+                  stroke={purple}
+                  strokeWidth={3}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </AdminChartFrame>
         </AdminCard>
       </section>
 
@@ -2120,7 +2132,7 @@ function AdminCard({
   className = '',
   title,
 }: {
-  children: React.ReactNode
+  children: ReactNode
   className?: string
   title?: string
 }) {
@@ -2133,6 +2145,19 @@ function AdminCard({
       ) : null}
       {children}
     </section>
+  )
+}
+
+function AdminChartFrame({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <div className="-mx-5 overflow-x-auto overscroll-x-contain px-5 pb-3 sm:mx-0 sm:px-0">
+        <div className="min-w-[620px] sm:min-w-0">{children}</div>
+      </div>
+      <p className="mt-1 text-xs font-bold text-slate-400 sm:hidden">
+        Geser grafik ke samping untuk melihat semua data.
+      </p>
+    </>
   )
 }
 
@@ -2333,6 +2358,11 @@ function DeletePinModal({
   const pinDots = Array.from({ length: 4 }, (_, index) => pin.length > index)
   const isPinComplete = pin.length === 4
 
+  const handlePinChange = (value: string) => {
+    setPin(value.replace(/\D/g, '').slice(0, 4))
+    setError('')
+  }
+
   const handleConfirm = () => {
     if (!/^\d{4}$/.test(pin)) {
       setError('PIN wajib 4 angka.')
@@ -2350,115 +2380,84 @@ function DeletePinModal({
     onClose()
   }
 
-  const handleKeypadDigit = (digit: string) => {
-    if (pin.length >= 4) return
-    setPin((currentPin) => `${currentPin}${digit}`.slice(0, 4))
-    setError('')
-  }
-
-  const handleBackspace = () => {
-    setPin((currentPin) => currentPin.slice(0, -1))
-    setError('')
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 px-4 py-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
-        className="admin-surface relative w-full max-w-md rounded-[8px] bg-white p-5 shadow-2xl shadow-slate-950/35 sm:p-8"
+        className="admin-surface relative w-full max-w-xl rounded-[8px] bg-white p-5 shadow-2xl shadow-slate-950/35 sm:p-7"
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute left-5 top-5 flex h-10 w-10 items-center justify-center rounded-[8px] text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-[8px] text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
           aria-label="Tutup konfirmasi PIN"
         >
           <X className="h-5 w-5" aria-hidden="true" />
         </button>
 
-        <div className="mx-auto flex w-fit items-center gap-3 pt-2">
+        <div className="flex items-center gap-3 pr-10">
           <img
             src="/logo-fti.png"
             alt="Logo FTI UNTAR"
-            className="h-16 w-44 object-contain drop-shadow-sm"
+            className="h-11 w-32 object-contain drop-shadow-sm"
           />
         </div>
 
-        <div className="mt-5 text-center">
-          <h2 className="text-2xl font-black text-slate-950">
-            Masukkan PIN Admin
-          </h2>
-          <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-slate-500">
-            {target.description} Masukkan 4 digit PIN untuk melanjutkan aksi
-            penghapusan.
+        <div className="mt-5">
+          <h2 className="text-2xl font-black text-slate-950">{target.title}</h2>
+          <p className="mt-2 max-w-lg text-sm font-semibold leading-6 text-slate-500">
+            {target.description} Masukkan PIN admin 4 digit untuk memastikan
+            aksi ini memang disengaja.
           </p>
         </div>
 
-        <div className="mt-7 rounded-[8px] border border-slate-200 bg-white px-5 py-5 shadow-inner">
-          <div className="flex items-center justify-center gap-7">
+        <label className="mt-5 block">
+          <span className="text-sm font-black text-slate-700">PIN Admin</span>
+          <div className="relative mt-2 rounded-[8px] border border-slate-200 bg-slate-50 px-5 py-4 transition focus-within:border-[#5c3386] focus-within:ring-4 focus-within:ring-[#5c3386]/12">
+            <input
+              value={pin}
+              onChange={(event) => handlePinChange(event.target.value)}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              autoFocus
+              aria-label="PIN admin 4 digit"
+              className="absolute inset-0 h-full w-full cursor-text opacity-0"
+            />
+            <div className="flex items-center justify-center gap-5">
             {pinDots.map((isFilled, index) => (
               <span
                 key={index}
-                className={`h-3 w-3 rounded-full transition ${
-                  isFilled ? 'scale-125 bg-[#5c3386]' : 'bg-slate-300'
-                }`}
+                  className={`flex h-11 w-11 items-center justify-center rounded-[8px] border bg-white text-xl font-black transition ${
+                    isFilled
+                      ? 'border-[#5c3386] shadow-md shadow-[#5c3386]/15'
+                      : 'border-slate-200'
+                  }`}
                 aria-label={`Digit PIN ${index + 1}`}
-              />
+                >
+                  <span
+                    className={`h-3 w-3 rounded-full ${
+                      isFilled ? 'bg-white' : 'bg-slate-300'
+                    }`}
+                  />
+                </span>
             ))}
+            </div>
           </div>
-        </div>
+        </label>
 
         {error ? (
-          <p className="mt-5 rounded-[8px] bg-[#7d2228]/8 px-4 py-3 text-center text-sm font-bold text-[#7d2228]">
+          <p className="mt-4 rounded-[8px] bg-[#7d2228]/8 px-4 py-3 text-sm font-bold text-[#7d2228]">
             {error}
           </p>
         ) : (
-          <p className="mt-5 rounded-[8px] bg-slate-50 px-4 py-3 text-center text-xs font-bold text-slate-500">
-            Aksi hapus baru diproses setelah keempat digit PIN benar. PIN demo:
-            1234.
+          <p className="mt-4 rounded-[8px] bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
+            Data belum dihapus sebelum PIN benar dan tombol konfirmasi ditekan.
           </p>
         )}
 
-        <div className="mx-auto mt-6 grid max-w-sm grid-cols-3 gap-4">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-            <button
-              key={digit}
-              type="button"
-              onClick={() => handleKeypadDigit(digit)}
-              className="flex aspect-square items-center justify-center rounded-full bg-slate-50 text-2xl font-black text-slate-950 shadow-sm transition hover:bg-[#5c3386]/10 active:scale-95"
-            >
-              {digit}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => {
-              setPin('')
-              setError('')
-            }}
-            className="flex aspect-square items-center justify-center rounded-full bg-slate-50 text-sm font-black text-slate-500 shadow-sm transition hover:bg-slate-100 active:scale-95"
-          >
-            Reset
-          </button>
-          <button
-            type="button"
-            onClick={() => handleKeypadDigit('0')}
-            className="flex aspect-square items-center justify-center rounded-full bg-slate-50 text-2xl font-black text-slate-950 shadow-sm transition hover:bg-[#5c3386]/10 active:scale-95"
-          >
-            0
-          </button>
-          <button
-            type="button"
-            onClick={handleBackspace}
-            className="flex aspect-square items-center justify-center rounded-full bg-slate-50 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-100 active:scale-95"
-            aria-label="Hapus satu digit PIN"
-          >
-            Hapus
-          </button>
-        </div>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <button
             type="button"
             onClick={onClose}
@@ -2492,7 +2491,7 @@ function ActionButtons({
   onEdit: () => void
 }) {
   return (
-    <div className="flex gap-2">
+    <div className="flex justify-end gap-2">
       <button
         type="button"
         onClick={onEdit}
@@ -2658,19 +2657,33 @@ function DataTable({
             className="rounded-[8px] border border-slate-200 bg-white p-4"
           >
             <div className="grid gap-3">
-              {row.map((cell, index) => (
-                <div
-                  key={columns[index]}
-                  className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3 last:border-0 last:pb-0"
-                >
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
-                    {columns[index]}
-                  </span>
-                  <div className="max-w-[60%] text-right text-sm font-bold text-slate-700">
-                    {cell}
+              {row.map((cell, index) => {
+                const isActionColumn = columns[index]?.toLowerCase() === 'aksi'
+
+                return (
+                  <div
+                    key={columns[index]}
+                    className={`border-b border-slate-100 pb-3 last:border-0 last:pb-0 ${
+                      isActionColumn
+                        ? 'grid gap-2'
+                        : 'flex items-start justify-between gap-4'
+                    }`}
+                  >
+                    <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
+                      {columns[index]}
+                    </span>
+                    <div
+                      className={
+                        isActionColumn
+                          ? 'w-full text-sm font-bold text-slate-700'
+                          : 'max-w-[60%] text-right text-sm font-bold text-slate-700'
+                      }
+                    >
+                      {cell}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </article>
         ))}
