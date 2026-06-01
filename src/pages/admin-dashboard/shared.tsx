@@ -255,14 +255,17 @@ export function PasswordResetItem({
     : hasEmailIssue
       ? 'Coba Kirim Lagi'
       : 'Kirim Email Reset'
-  const helperText =
-    request.emailStatus === 'SMTP_NOT_CONFIGURED'
-      ? 'SMTP backend belum aktif.'
-      : request.emailStatus === 'FAILED'
-        ? 'Email gagal dikirim.'
-        : request.emailStatus === 'SENT'
-          ? 'Email berhasil dikirim.'
-          : ''
+      
+  let helperText = ''
+  if (request.emailStatus === 'SMTP_NOT_CONFIGURED') {
+    helperText = request.resetUrl 
+      ? `SMTP belum aktif. Link manual: ${request.resetUrl}` 
+      : 'SMTP backend belum aktif.'
+  } else if (request.emailStatus === 'FAILED') {
+    helperText = 'Email gagal dikirim.'
+  } else if (request.emailStatus === 'SENT') {
+    helperText = 'Email berhasil dikirim.'
+  }
 
   return (
     <article className="rounded-[8px] border border-slate-200 p-4">

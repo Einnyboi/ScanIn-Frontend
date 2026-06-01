@@ -130,7 +130,7 @@ export function UsersView({ onUsersChange, users }: UsersViewProps) {
       confirmLabel: 'Hapus Pengguna',
       onConfirm: async () => {
         try {
-          await apiRequest(`/admin-users/${key}`, { method: 'DELETE' })
+          await apiRequest(`/admin-users/${user.id}`, { method: 'DELETE' })
           await onUsersChange(
             users.filter((item) => getAdminUserKey(item) !== key),
             false,

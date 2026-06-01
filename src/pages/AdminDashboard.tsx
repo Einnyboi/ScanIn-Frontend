@@ -178,7 +178,9 @@ export default function AdminDashboard({
 
   useEffect(() => {
     void fetchAdminUsersFromBackend().then((backendUsers) => {
-      setUsers(backendUsers)
+      if (backendUsers) {
+        setUsers(backendUsers)
+      }
     })
   }, [])
 
@@ -358,7 +360,7 @@ export default function AdminDashboard({
       setAdminNotice({
         tone: 'warning',
         message:
-          'Permintaan tercatat, tapi SMTP backend belum dikonfigurasi jadi email asli belum terkirim.',
+          request.resetUrl ? `SMTP belum aktif. Namun link reset berhasil dibuat: ${request.resetUrl} (Silakan copy dan bagikan manual ke pengguna)` : 'Permintaan tercatat, tapi SMTP backend belum dikonfigurasi jadi email asli belum terkirim.',
       })
       return
     }
