@@ -43,34 +43,35 @@ export const loadAdminUsers = (fallbackUsers: AdminUser[]) => {
 export const saveAdminUsers = (
   users: AdminUser[],
   shouldSyncBackend = true,
-) => {
+): Promise<AdminUser[]> => {
   if (typeof window === 'undefined') {
-    return
+    return Promise.resolve(users)
+  }
+
+  if (shouldSyncBackend) {
+    return apiRequest<AdminUser[]>('/admin-users', {
+      method: 'PUT',
+      body: JSON.stringify(users),
+    }).then((backendUsers) => {
+      window.localStorage.setItem(adminUserKey, JSON.stringify(backendUsers))
+      notifyAdminUsersChanged()
+      return backendUsers
+    })
   }
 
   window.localStorage.setItem(adminUserKey, JSON.stringify(users))
   notifyAdminUsersChanged()
 
-  if (shouldSyncBackend) {
-    void apiRequest<AdminUser[]>('/admin-users', {
-      method: 'PUT',
-      body: JSON.stringify(users),
-    }).catch(() => undefined)
-  }
+  return Promise.resolve(users)
 }
 
-export const fetchAdminUsersFromBackend = async (fallbackUsers: AdminUser[]) => {
+export const fetchAdminUsersFromBackend = async () => {
   try {
     const users = await apiRequest<AdminUser[]>('/admin-users')
 
-    if (!users.length) {
-      saveAdminUsers(fallbackUsers)
-      return fallbackUsers
-    }
-
-    saveAdminUsers(users, false)
+    await saveAdminUsers(users, false)
     return users
   } catch {
-    return null
+    return []
   }
 }
