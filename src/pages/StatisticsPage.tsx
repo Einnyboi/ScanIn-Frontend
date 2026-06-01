@@ -477,9 +477,12 @@ function ChartCard({
   return (
     <section className="rounded-lg border border-white bg-white p-4 shadow-lg shadow-slate-900/8 sm:p-7">
       <h2 className="text-xl font-black text-slate-950 sm:text-2xl">{title}</h2>
-      <div className="-mx-4 mt-5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:mt-6 sm:px-0">
-        {children}
+      <div className="-mx-4 mt-5 overflow-x-auto overscroll-x-contain px-4 pb-3 sm:mx-0 sm:mt-6 sm:px-0">
+        <div className="min-w-[760px] sm:min-w-0">{children}</div>
       </div>
+      <p className="mt-1 text-xs font-bold text-slate-400 sm:hidden">
+        Geser grafik ke samping untuk melihat semua data.
+      </p>
     </section>
   )
 }
