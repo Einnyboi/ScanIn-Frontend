@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useState,
   type FormEvent,
   type ReactNode,
@@ -43,9 +44,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-import { correctionTickets } from '../data/mockAttendance'
 import { loadLocalProfiles } from '../lib/localSession'
-import type { CorrectionTicket, CourseSchedule } from '../types/attendance'
+import type { CorrectionTicket, CourseSchedule, ScanRecord } from '../types/attendance'
 import type { LocalSession } from '../types/auth'
 import {
   adminUsersChangedEvent,
@@ -87,11 +87,10 @@ import {
 } from '../utils/schedules'
 import {
   fetchTicketsFromBackend,
-  loadCorrectionTickets,
-  ticketsChangedEvent,
   updateStoredTicket,
 } from '../utils/tickets'
 import {
+  fetchPasswordResetSmtpStatus,
   fetchPasswordResetRequestsFromBackend,
   loadPasswordResetRequests,
   markPasswordResetAsSent,
@@ -218,21 +217,37 @@ const defaultAdminUsers: AdminUser[] = [
   },
 ]
 
-const monthlyAttendanceData = [
-  { month: 'Jan', percentage: 86, hadir: 860, terlambat: 45, alpha: 24 },
-  { month: 'Feb', percentage: 88, hadir: 825, terlambat: 58, alpha: 32 },
-  { month: 'Mar', percentage: 90, hadir: 895, terlambat: 47, alpha: 20 },
-  { month: 'Apr', percentage: 87, hadir: 872, terlambat: 55, alpha: 31 },
-  { month: 'Mei', percentage: 85, hadir: 850, terlambat: 50, alpha: 22 },
-]
+type MonthlyAttendancePoint = {
+  month: string
+  percentage: number
+  hadir: number
+  terlambat: number
+  alpha: number
+}
 
-const sessionsPerDayData = [
-  { day: 'Sen', sessions: 12 },
-  { day: 'Sel', sessions: 15 },
-  { day: 'Rab', sessions: 14 },
-  { day: 'Kam', sessions: 13 },
-  { day: 'Jum', sessions: 11 },
-]
+type DaySessionsPoint = {
+  day: string
+  sessions: number
+}
+
+type ClassPerformancePoint = {
+  course: string
+  percentage: number
+}
+
+type AdminAnalytics = {
+  monthlyAttendance: MonthlyAttendancePoint[]
+  sessionsPerDay: DaySessionsPoint[]
+  classPerformance: ClassPerformancePoint[]
+  statusDistribution: Array<{ name: string; value: number; color: string }>
+  attendanceRate: number
+  lateRate: number
+  absentRate: number
+  attendanceTrend: string
+  lateTrend: string
+  absentTrend: string
+  totalSessions: number
+}
 
 export default function AdminDashboard({
   session,
@@ -246,7 +261,7 @@ export default function AdminDashboard({
     loadSchedules(),
   )
   const [tickets, setTickets] = useState<CorrectionTicket[]>(() =>
-    loadCorrectionTickets(correctionTickets),
+    [],
   )
   const [reports, setReports] = useState<GeneratedReport[]>(() =>
     loadGeneratedReports(),
@@ -260,6 +275,10 @@ export default function AdminDashboard({
   const [scanRecords, setScanRecords] = useState(() => loadStoredScanRecords())
   const [currentTime, setCurrentTime] = useState(() => new Date())
   const [adminNotice, setAdminNotice] = useState<AdminNotice | null>(null)
+  const analytics = useMemo(
+    () => buildAdminAnalytics(scanRecords, schedules, currentTime),
+    [currentTime, scanRecords, schedules],
+  )
 
   const meta = pageMeta[activeView]
   const adminNotificationCount =
@@ -308,19 +327,23 @@ export default function AdminDashboard({
   }, [])
 
   useEffect(() => {
-    const reload = () => setTickets(loadCorrectionTickets(correctionTickets))
+    const reload = () => {
+      void fetchTicketsFromBackend([]).then((backendTickets) => {
+        if (backendTickets) {
+          setTickets(backendTickets)
+        }
+      })
+    }
 
-    void fetchTicketsFromBackend(correctionTickets).then((backendTickets) => {
+    void fetchTicketsFromBackend([]).then((backendTickets) => {
       if (backendTickets) {
         setTickets(backendTickets)
       }
     })
 
     window.addEventListener('storage', reload)
-    window.addEventListener(ticketsChangedEvent, reload)
     return () => {
       window.removeEventListener('storage', reload)
-      window.removeEventListener(ticketsChangedEvent, reload)
     }
   }, [])
 
@@ -402,7 +425,7 @@ export default function AdminDashboard({
     saveSchedules(nextSchedules)
   }
 
-  const handleTicketAction = (
+  const handleTicketAction = async (
     ticketId: string,
     status: CorrectionTicket['status'],
   ) => {
@@ -410,12 +433,20 @@ export default function AdminDashboard({
     if (!selectedTicket) return
 
     const updatedTicket = { ...selectedTicket, status }
-    setTickets((currentTickets) =>
-      currentTickets.map((ticket) =>
-        ticket.id === ticketId ? updatedTicket : ticket,
-      ),
-    )
-    updateStoredTicket(updatedTicket)
+
+    try {
+      const savedTicket = await updateStoredTicket(updatedTicket)
+      setTickets((currentTickets) =>
+        currentTickets.map((ticket) =>
+          ticket.id === savedTicket.id ? savedTicket : ticket,
+        ),
+      )
+    } catch {
+      setAdminNotice({
+        tone: 'danger',
+        message: 'Gagal memperbarui tiket ke backend. Coba lagi.',
+      })
+    }
   }
 
   const handleGenerateReport = (kind: ReportKind = 'attendance') => {
@@ -442,16 +473,21 @@ export default function AdminDashboard({
     if (request.emailStatus === 'SENT') {
       setAdminNotice({
         tone: 'success',
-        message: `Link reset berhasil dikirim ke ${request.registeredEmail}.`,
+        message: `Kode OTP reset berhasil dikirim ke ${request.registeredEmail}.`,
       })
       return
     }
 
     if (request.emailStatus === 'SMTP_NOT_CONFIGURED') {
+      const smtpStatus = await fetchPasswordResetSmtpStatus().catch(() => null)
+      const missingConfig = smtpStatus?.missing?.length
+        ? ` Lengkapi ${smtpStatus.missing.join(', ')} di file .env backend, lalu restart backend.`
+        : ''
+
       setAdminNotice({
         tone: 'warning',
         message:
-          'Permintaan tercatat, tapi SMTP backend belum dikonfigurasi jadi email asli belum terkirim.',
+          `Email OTP belum dapat dikirim karena konfigurasi SMTP belum lengkap.${missingConfig}`,
       })
       return
     }
@@ -459,12 +495,14 @@ export default function AdminDashboard({
     setAdminNotice({
       tone: 'danger',
       message:
-        'Backend gagal mengirim email reset. Cek konfigurasi SMTP dan koneksi email.',
+        request.emailError
+          ? `Backend gagal mengirim email reset: ${request.emailError}`
+          : 'Backend gagal mengirim email reset. Cek konfigurasi SMTP dan koneksi email.',
     })
   }
 
   return (
-    <div className="admin-shell min-h-screen bg-[#f5f6fa] text-slate-950 md:grid md:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
+    <div className="admin-shell min-h-screen bg-[#f5f6fa] text-slate-950 md:grid md:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
       <AdminSidebar
         activeView={activeView}
         onLogout={onLogout}
@@ -492,21 +530,24 @@ export default function AdminDashboard({
               <span className="text-[#5c3386]">{meta.breadcrumb}</span>
             </nav>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <div className="flex h-11 items-center gap-2 rounded-[8px] border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600">
+              <div
+                className="flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-[8px] border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 sm:min-w-fit sm:gap-2"
+                aria-label={`${formatAdminDate(currentTime)} ${formatAdminTime(currentTime)}`}
+              >
                 <CalendarDays
-                  className="h-4 w-4 text-[#5c3386]"
+                  className="hidden h-4 w-4 text-[#5c3386] sm:block"
                   aria-hidden="true"
                 />
                 <span className="hidden sm:inline">
                   {formatAdminDate(currentTime)}
                 </span>
                 <Clock className="h-4 w-4 text-[#7d2228]" aria-hidden="true" />
-                <span>{formatAdminTime(currentTime)}</span>
+                <span className="tabular-nums">{formatAdminTime(currentTime)}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveView('notifications')}
-                className="relative flex h-11 items-center justify-center rounded-[8px] border border-slate-200 bg-white px-3 text-sm font-black text-slate-600 transition hover:border-[#5c3386]/40 hover:text-[#5c3386]"
+                className="relative flex h-11 w-11 items-center justify-center rounded-[8px] border border-slate-200 bg-white px-0 text-sm font-black text-slate-600 transition hover:border-[#5c3386]/40 hover:text-[#5c3386] sm:w-auto sm:px-3"
                 aria-label={`${adminNotificationCount} notifikasi admin`}
               >
                 <Bell className="h-5 w-5" aria-hidden="true" />
@@ -544,6 +585,7 @@ export default function AdminDashboard({
           {activeView === 'dashboard' ? (
             <DashboardView
               complaints={complaints}
+              analytics={analytics}
               onSendReset={handleSendReset}
               passwordRequests={passwordRequests}
               schedules={schedules}
@@ -567,6 +609,7 @@ export default function AdminDashboard({
           ) : null}
           {activeView === 'reports' ? (
             <ReportsView
+              analytics={analytics}
               onGenerateReport={handleGenerateReport}
               reports={reports}
             />
@@ -602,15 +645,15 @@ function AdminSidebar({
   session: LocalSession
 }) {
   return (
-    <aside className="sticky top-0 z-30 flex flex-col bg-[#573485] text-white shadow-xl shadow-[#28183d]/15 md:h-dvh md:max-h-dvh md:overflow-hidden">
-      <div className="shrink-0 border-b border-white/14 px-5 py-6 md:px-6">
+    <aside className="admin-sidebar z-30 flex flex-col bg-[#573485] text-white shadow-xl shadow-[#28183d]/15 md:sticky md:top-0 md:h-screen md:max-h-screen md:overflow-hidden">
+      <div className="shrink-0 border-b border-white/14 px-4 py-4 md:px-5 md:py-5">
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-white/14 text-xl font-black tracking-tight text-white shadow-lg shadow-[#2b1844]/20 ring-1 ring-white/10">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-white/14 text-base font-black tracking-tight text-white shadow-lg shadow-[#2b1844]/20 ring-1 ring-white/10 md:h-12 md:w-12 md:text-lg">
               FTI
             </div>
             <div className="min-w-0">
-              <p className="truncate text-2xl font-black leading-none tracking-tight text-white">
+              <p className="truncate text-xl font-black leading-none tracking-tight text-white md:text-[1.55rem]">
                 FTI UNTAR
               </p>
               <p className="mt-1 text-sm font-semibold text-white/65">
@@ -621,18 +664,19 @@ function AdminSidebar({
           <button
             type="button"
             onClick={onLogout}
-            className="flex h-11 items-center justify-center gap-2 rounded-[8px] border border-white/20 px-4 text-sm font-black text-white transition hover:bg-white/10 md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-[8px] border border-white/20 px-0 text-sm font-black text-white transition hover:bg-white/10 md:hidden"
+            aria-label="Keluar"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
-            Keluar
+            <span className="sr-only">Keluar</span>
           </button>
         </div>
       </div>
 
-      <div className="shrink-0 border-b border-white/14 px-5 py-5 md:px-6">
-        <div className="flex items-center gap-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#7d2228] text-white shadow-xl shadow-[#321a4c]/25">
-            <Shield className="h-8 w-8" aria-hidden="true" />
+      <div className="hidden shrink-0 border-b border-white/14 px-5 py-5 md:block">
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#7d2228] text-white shadow-xl shadow-[#321a4c]/25">
+            <Shield className="h-7 w-7" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <p className="truncate text-xl font-black text-white">
@@ -645,8 +689,8 @@ function AdminSidebar({
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-2 overflow-hidden px-5 py-5">
-        <p className="px-3 pb-2 text-xs font-black uppercase tracking-[0.14em] text-white/42">
+      <nav className="flex gap-2 overflow-x-auto px-4 py-3 md:min-h-0 md:flex-1 md:flex-col md:overflow-hidden md:px-4 md:py-5">
+        <p className="hidden px-3 pb-2 text-xs font-black uppercase tracking-[0.14em] text-white/42 md:block">
           Menu Utama
         </p>
         {menuItems.map((item) => {
@@ -658,16 +702,16 @@ function AdminSidebar({
               key={item.id}
               type="button"
               onClick={() => onViewChange(item.id)}
-              className={`relative flex h-12 w-full items-center justify-start gap-4 rounded-[8px] px-5 text-left text-lg font-black transition ${
+              className={`relative flex h-11 shrink-0 items-center justify-start gap-2 rounded-[8px] px-3 text-left text-sm font-black transition md:h-11 md:w-full md:gap-3 md:px-4 md:text-base ${
                 isActive
                   ? 'bg-white/14 text-white shadow-lg shadow-[#321a4c]/20'
                   : 'text-white/64 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <Icon className="h-6 w-6 shrink-0" aria-hidden="true" />
+              <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
               <span>{item.label}</span>
               {isActive ? (
-                <span className="absolute right-5 h-2.5 w-2.5 rounded-full bg-white/70" />
+                <span className="absolute right-3 h-2 w-2 rounded-full bg-white/70 md:right-5 md:h-2.5 md:w-2.5" />
               ) : null}
             </button>
           )
@@ -678,9 +722,9 @@ function AdminSidebar({
         <button
           type="button"
           onClick={onLogout}
-          className="flex h-11 w-full items-center gap-4 rounded-[8px] px-5 text-left text-lg font-black text-white/75 transition hover:bg-white/10 hover:text-white"
+          className="flex h-11 w-full items-center gap-3 rounded-[8px] px-4 text-left text-base font-black text-white/75 transition hover:bg-white/10 hover:text-white"
         >
-          <LogOut className="h-6 w-6" aria-hidden="true" />
+          <LogOut className="h-5 w-5" aria-hidden="true" />
           <span>Keluar</span>
         </button>
       </div>
@@ -719,6 +763,7 @@ function AdminNoticeBanner({
 }
 
 function DashboardView({
+  analytics,
   complaints,
   onSendReset,
   passwordRequests,
@@ -727,6 +772,7 @@ function DashboardView({
   tickets,
   users,
 }: {
+  analytics: AdminAnalytics
   complaints: SupportComplaint[]
   onSendReset: (requestId: string) => void | Promise<void>
   passwordRequests: PasswordResetRequest[]
@@ -766,44 +812,49 @@ function DashboardView({
 
       <section className="grid gap-5 xl:grid-cols-2">
         <AdminCard title="Tren Kehadiran Bulanan">
-          <ResponsiveContainer width="100%" height={270}>
-            <LineChart data={monthlyAttendanceData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
-              <Legend />
-              <Line
-                dataKey="percentage"
-                name="Persentase (%)"
-                stroke={purple}
-                strokeWidth={3}
-                type="monotone"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <AdminChartFrame>
+            <ResponsiveContainer width="100%" height={270}>
+              <LineChart data={analytics.monthlyAttendance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis domain={[0, 100]} />
+                <Tooltip />
+                <Legend />
+                <Line
+                  dataKey="percentage"
+                  name="Persentase (%)"
+                  stroke={purple}
+                  strokeWidth={3}
+                  type="monotone"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </AdminChartFrame>
         </AdminCard>
 
         <AdminCard title="Sesi Per Hari (Minggu Ini)">
-          <ResponsiveContainer width="100%" height={270}>
-            <BarChart data={sessionsPerDayData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="sessions" fill={purple} name="Jumlah Sesi" />
-            </BarChart>
-          </ResponsiveContainer>
+          <AdminChartFrame>
+            <ResponsiveContainer width="100%" height={270}>
+              <BarChart data={analytics.sessionsPerDay}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="day" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="sessions" fill={purple} name="Jumlah Sesi" />
+              </BarChart>
+            </ResponsiveContainer>
+          </AdminChartFrame>
         </AdminCard>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-3">
-        <AdminCard title="Aktivitas Lokal">
+        <AdminCard title="Aktivitas Backend">
           <div className="grid gap-3">
             <ActivityTile label="Scan tersimpan" value={scanRecordsCount} />
-            <ActivityTile label="Keluhan bantuan" value={complaints.length} />
+            <ActivityTile label="Tiket koreksi" value={pendingTickets.length} />
             <ActivityTile label="Reset password" value={pendingResets.length} />
+            <ActivityTile label="Pengaduan akun" value={complaints.length} />
           </div>
         </AdminCard>
 
@@ -822,28 +873,28 @@ function DashboardView({
           </div>
         </AdminCard>
 
-        <AdminCard title="Keluhan Bantuan">
+        <AdminCard title="Tiket Koreksi">
           <div className="space-y-3">
-            {complaints.slice(0, 3).map((complaint) => (
+            {pendingTickets.slice(0, 3).map((ticket) => (
               <div
-                key={complaint.id}
+                key={ticket.id}
                 className="rounded-[8px] border border-slate-200 p-4"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="font-black text-slate-950">{complaint.name}</p>
+                  <p className="font-black text-slate-950">{ticket.studentName}</p>
                   <span className="rounded-full bg-[#5c3386]/10 px-3 py-1 text-xs font-black text-[#5c3386]">
-                    {complaint.role}
+                    {ticket.status}
                   </span>
                 </div>
                 <p className="mt-1 text-xs font-bold text-slate-500">
-                  {complaint.category}
+                  NIM: {ticket.studentId} - {ticket.courseTitle} - {ticket.date}
                 </p>
                 <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-600">
-                  {complaint.message}
+                  {ticket.reason}
                 </p>
               </div>
             ))}
-            {!complaints.length ? <EmptyState text="Belum ada keluhan." /> : null}
+            {!pendingTickets.length ? <EmptyState text="Belum ada tiket." /> : null}
           </div>
         </AdminCard>
       </section>
@@ -955,7 +1006,7 @@ function NotificationsView({
                     {formatNotificationDate(request.createdAt)}
                   </p>
                   <p className="mt-3 rounded-[8px] bg-slate-50 px-4 py-3 text-sm font-semibold leading-6 text-slate-600">
-                    Kirim tautan reset ke {request.registeredEmail}
+                    Kirim kode OTP reset ke {request.registeredEmail}
                   </p>
                 </div>
                 <button
@@ -964,7 +1015,7 @@ function NotificationsView({
                   className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white"
                 >
                   <KeyRound className="h-4 w-4" />
-                  Kirim Email Reset
+                  Setujui & Kirim OTP
                 </button>
               </div>
             </article>
@@ -1153,7 +1204,7 @@ function UsersView({
 
     setDeleteTarget({
       title: 'Konfirmasi Hapus Pengguna',
-      description: `Data ${user.name} (${user.id}) akan dihapus dari daftar ${user.role}. Masukkan PIN admin 4 angka untuk melanjutkan.`,
+      description: `Data ${user.name} (${user.id}) akan dihapus dari daftar ${user.role}.`,
       confirmLabel: 'Hapus Pengguna',
       onConfirm: () => {
         onUsersChange(users.filter((item) => getAdminUserKey(item) !== key))
@@ -1429,7 +1480,7 @@ function ScheduleView({
   const handleDeleteRequest = (schedule: CourseSchedule) => {
     setDeleteTarget({
       title: 'Konfirmasi Hapus Jadwal',
-      description: `Jadwal ${schedule.title} (${schedule.time}, ${schedule.room}) akan dihapus dari mahasiswa dan pengajar. Masukkan PIN admin 4 angka untuk melanjutkan.`,
+      description: `Jadwal ${schedule.title} (${schedule.time}, ${schedule.room}) akan dihapus dari mahasiswa dan pengajar.`,
       confirmLabel: 'Hapus Jadwal',
       onConfirm: () => {
         onSchedulesChange(schedules.filter((item) => item.id !== schedule.id))
@@ -1661,30 +1712,7 @@ function AttendanceView({ scanRecords }: { scanRecords: ReturnType<typeof loadSt
   const [query, setQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [courseFilter, setCourseFilter] = useState('Semua Kelas')
-  const rows = scanRecords.length
-    ? scanRecords
-    : [
-        {
-          id: 'demo-1',
-          studentId: '535240187',
-          studentName: "Naisya Yuen Ra'af",
-          courseTitle: 'Basis Data Lanjut',
-          scannedAt: '08:02',
-          recordedAt: new Date().toISOString(),
-          method: 'QR Code' as const,
-          status: 'Terverifikasi' as const,
-        },
-        {
-          id: 'demo-2',
-          studentId: '535240156',
-          studentName: 'Ahmad Rizki',
-          courseTitle: 'Basis Data Lanjut',
-          scannedAt: '08:17',
-          recordedAt: new Date().toISOString(),
-          method: 'QR Code' as const,
-          status: 'Terlambat' as const,
-        },
-      ]
+  const rows = scanRecords
   const courseOptions = [
     'Semua Kelas',
     ...Array.from(new Set(rows.map((row) => row.courseTitle))),
@@ -1809,9 +1837,11 @@ function AttendanceView({ scanRecords }: { scanRecords: ReturnType<typeof loadSt
 }
 
 function ReportsView({
+  analytics,
   onGenerateReport,
   reports,
 }: {
+  analytics: AdminAnalytics
   onGenerateReport: (kind?: ReportKind) => void
   reports: GeneratedReport[]
 }) {
@@ -1845,60 +1875,57 @@ function ReportsView({
   return (
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-4">
-        <TrendStat label="Kehadiran Rata-rata" trend="+2.5% dari bulan lalu" value="84%" />
+        <TrendStat label="Kehadiran Rata-rata" trend={analytics.attendanceTrend} value={`${analytics.attendanceRate}%`} />
         <TrendStat
           label="Keterlambatan"
           tone="yellow"
-          trend="-1.2% dari bulan lalu"
-          value="11%"
+          trend={analytics.lateTrend}
+          value={`${analytics.lateRate}%`}
         />
         <TrendStat
           label="Ketidakhadiran"
           tone="red"
-          trend="+0.8% dari bulan lalu"
-          value="5%"
+          trend={analytics.absentTrend}
+          value={`${analytics.absentRate}%`}
         />
-        <SimpleStat label="Total Sesi" tone="blue" value={245} />
+        <SimpleStat label="Total Sesi" tone="blue" value={analytics.totalSessions} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
         <AdminCard title="Tren Kehadiran Bulanan">
-          <ResponsiveContainer width="100%" height={270}>
-            <BarChart data={monthlyAttendanceData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="hadir" fill={purple} name="Hadir" />
-              <Bar dataKey="terlambat" fill={amber} name="Terlambat" />
-              <Bar dataKey="alpha" fill={maroon} name="Alpha" />
-            </BarChart>
-          </ResponsiveContainer>
+          <AdminChartFrame>
+            <ResponsiveContainer width="100%" height={270}>
+              <BarChart data={analytics.monthlyAttendance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="hadir" fill={purple} name="Hadir" />
+                <Bar dataKey="terlambat" fill={amber} name="Terlambat" />
+                <Bar dataKey="alpha" fill={maroon} name="Alpha" />
+              </BarChart>
+            </ResponsiveContainer>
+          </AdminChartFrame>
         </AdminCard>
         <AdminCard title="Performa Per Mata Kuliah">
-          <ResponsiveContainer width="100%" height={270}>
-            <LineChart
-              data={[
-                { course: 'Kecerdasan Buatan', percentage: 92 },
-                { course: 'Jaringan Komputer', percentage: 91 },
-                { course: 'Basis Data Lanjut', percentage: 89 },
-                { course: 'Pemrograman Web', percentage: 85 },
-              ]}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="course" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
-              <Legend />
-              <Line
-                dataKey="percentage"
-                name="Persentase (%)"
-                stroke={purple}
-                strokeWidth={3}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <AdminChartFrame>
+            <ResponsiveContainer width="100%" height={270}>
+              <LineChart data={analytics.classPerformance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="course" />
+                <YAxis domain={[0, 100]} />
+                <Tooltip />
+                <Legend />
+                <Line
+                  dataKey="percentage"
+                  name="Persentase (%)"
+                  stroke={purple}
+                  strokeWidth={3}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </AdminChartFrame>
         </AdminCard>
       </section>
 
@@ -2105,7 +2132,7 @@ function AdminCard({
   className = '',
   title,
 }: {
-  children: React.ReactNode
+  children: ReactNode
   className?: string
   title?: string
 }) {
@@ -2118,6 +2145,19 @@ function AdminCard({
       ) : null}
       {children}
     </section>
+  )
+}
+
+function AdminChartFrame({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <div className="-mx-5 overflow-x-auto overscroll-x-contain px-5 pb-3 sm:mx-0 sm:px-0">
+        <div className="min-w-[620px] sm:min-w-0">{children}</div>
+      </div>
+      <p className="mt-1 text-xs font-bold text-slate-400 sm:hidden">
+        Geser grafik ke samping untuk melihat semua data.
+      </p>
+    </>
   )
 }
 
@@ -2231,17 +2271,17 @@ function PasswordResetItem({
     request.emailStatus === 'FAILED' ||
     request.emailStatus === 'SMTP_NOT_CONFIGURED'
   const buttonText = isEmailSent
-    ? 'Sudah dikirim'
+    ? 'OTP terkirim'
     : hasEmailIssue
       ? 'Coba Kirim Lagi'
-      : 'Kirim Email Reset'
+      : 'Setujui & Kirim OTP'
   const helperText =
     request.emailStatus === 'SMTP_NOT_CONFIGURED'
-      ? 'SMTP backend belum aktif.'
+      ? request.emailError ?? 'SMTP backend belum aktif.'
       : request.emailStatus === 'FAILED'
-        ? 'Email gagal dikirim.'
+        ? request.emailError ?? 'Email gagal dikirim.'
         : request.emailStatus === 'SENT'
-          ? 'Email berhasil dikirim.'
+          ? 'Email OTP berhasil dikirim.'
           : ''
 
   return (
@@ -2318,6 +2358,11 @@ function DeletePinModal({
   const pinDots = Array.from({ length: 4 }, (_, index) => pin.length > index)
   const isPinComplete = pin.length === 4
 
+  const handlePinChange = (value: string) => {
+    setPin(value.replace(/\D/g, '').slice(0, 4))
+    setError('')
+  }
+
   const handleConfirm = () => {
     if (!/^\d{4}$/.test(pin)) {
       setError('PIN wajib 4 angka.')
@@ -2335,115 +2380,84 @@ function DeletePinModal({
     onClose()
   }
 
-  const handleKeypadDigit = (digit: string) => {
-    if (pin.length >= 4) return
-    setPin((currentPin) => `${currentPin}${digit}`.slice(0, 4))
-    setError('')
-  }
-
-  const handleBackspace = () => {
-    setPin((currentPin) => currentPin.slice(0, -1))
-    setError('')
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 px-4 py-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
-        className="admin-surface relative w-full max-w-md rounded-[8px] bg-white p-5 shadow-2xl shadow-slate-950/35 sm:p-8"
+        className="admin-surface relative w-full max-w-xl rounded-[8px] bg-white p-5 shadow-2xl shadow-slate-950/35 sm:p-7"
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute left-5 top-5 flex h-10 w-10 items-center justify-center rounded-[8px] text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-[8px] text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
           aria-label="Tutup konfirmasi PIN"
         >
           <X className="h-5 w-5" aria-hidden="true" />
         </button>
 
-        <div className="mx-auto flex w-fit items-center gap-3 pt-2">
+        <div className="flex items-center gap-3 pr-10">
           <img
             src="/logo-fti.png"
             alt="Logo FTI UNTAR"
-            className="h-16 w-44 object-contain drop-shadow-sm"
+            className="h-11 w-32 object-contain drop-shadow-sm"
           />
         </div>
 
-        <div className="mt-5 text-center">
-          <h2 className="text-2xl font-black text-slate-950">
-            Masukkan PIN Admin
-          </h2>
-          <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-slate-500">
-            {target.description} Masukkan 4 digit PIN untuk melanjutkan aksi
-            penghapusan.
+        <div className="mt-5">
+          <h2 className="text-2xl font-black text-slate-950">{target.title}</h2>
+          <p className="mt-2 max-w-lg text-sm font-semibold leading-6 text-slate-500">
+            {target.description} Masukkan PIN admin 4 digit untuk memastikan
+            aksi ini memang disengaja.
           </p>
         </div>
 
-        <div className="mt-7 rounded-[8px] border border-slate-200 bg-white px-5 py-5 shadow-inner">
-          <div className="flex items-center justify-center gap-7">
+        <label className="mt-5 block">
+          <span className="text-sm font-black text-slate-700">PIN Admin</span>
+          <div className="relative mt-2 rounded-[8px] border border-slate-200 bg-slate-50 px-5 py-4 transition focus-within:border-[#5c3386] focus-within:ring-4 focus-within:ring-[#5c3386]/12">
+            <input
+              value={pin}
+              onChange={(event) => handlePinChange(event.target.value)}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              autoFocus
+              aria-label="PIN admin 4 digit"
+              className="absolute inset-0 h-full w-full cursor-text opacity-0"
+            />
+            <div className="flex items-center justify-center gap-5">
             {pinDots.map((isFilled, index) => (
               <span
                 key={index}
-                className={`h-3 w-3 rounded-full transition ${
-                  isFilled ? 'scale-125 bg-[#5c3386]' : 'bg-slate-300'
-                }`}
+                  className={`flex h-11 w-11 items-center justify-center rounded-[8px] border bg-white text-xl font-black transition ${
+                    isFilled
+                      ? 'border-[#5c3386] shadow-md shadow-[#5c3386]/15'
+                      : 'border-slate-200'
+                  }`}
                 aria-label={`Digit PIN ${index + 1}`}
-              />
+                >
+                  <span
+                    className={`h-3 w-3 rounded-full ${
+                      isFilled ? 'bg-white' : 'bg-slate-300'
+                    }`}
+                  />
+                </span>
             ))}
+            </div>
           </div>
-        </div>
+        </label>
 
         {error ? (
-          <p className="mt-5 rounded-[8px] bg-[#7d2228]/8 px-4 py-3 text-center text-sm font-bold text-[#7d2228]">
+          <p className="mt-4 rounded-[8px] bg-[#7d2228]/8 px-4 py-3 text-sm font-bold text-[#7d2228]">
             {error}
           </p>
         ) : (
-          <p className="mt-5 rounded-[8px] bg-slate-50 px-4 py-3 text-center text-xs font-bold text-slate-500">
-            Aksi hapus baru diproses setelah keempat digit PIN benar. PIN demo:
-            1234.
+          <p className="mt-4 rounded-[8px] bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
+            Data belum dihapus sebelum PIN benar dan tombol konfirmasi ditekan.
           </p>
         )}
 
-        <div className="mx-auto mt-6 grid max-w-sm grid-cols-3 gap-4">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-            <button
-              key={digit}
-              type="button"
-              onClick={() => handleKeypadDigit(digit)}
-              className="flex aspect-square items-center justify-center rounded-full bg-slate-50 text-2xl font-black text-slate-950 shadow-sm transition hover:bg-[#5c3386]/10 active:scale-95"
-            >
-              {digit}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => {
-              setPin('')
-              setError('')
-            }}
-            className="flex aspect-square items-center justify-center rounded-full bg-slate-50 text-sm font-black text-slate-500 shadow-sm transition hover:bg-slate-100 active:scale-95"
-          >
-            Reset
-          </button>
-          <button
-            type="button"
-            onClick={() => handleKeypadDigit('0')}
-            className="flex aspect-square items-center justify-center rounded-full bg-slate-50 text-2xl font-black text-slate-950 shadow-sm transition hover:bg-[#5c3386]/10 active:scale-95"
-          >
-            0
-          </button>
-          <button
-            type="button"
-            onClick={handleBackspace}
-            className="flex aspect-square items-center justify-center rounded-full bg-slate-50 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-100 active:scale-95"
-            aria-label="Hapus satu digit PIN"
-          >
-            Hapus
-          </button>
-        </div>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <button
             type="button"
             onClick={onClose}
@@ -2477,7 +2491,7 @@ function ActionButtons({
   onEdit: () => void
 }) {
   return (
-    <div className="flex gap-2">
+    <div className="flex justify-end gap-2">
       <button
         type="button"
         onClick={onEdit}
@@ -2643,19 +2657,33 @@ function DataTable({
             className="rounded-[8px] border border-slate-200 bg-white p-4"
           >
             <div className="grid gap-3">
-              {row.map((cell, index) => (
-                <div
-                  key={columns[index]}
-                  className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3 last:border-0 last:pb-0"
-                >
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
-                    {columns[index]}
-                  </span>
-                  <div className="max-w-[60%] text-right text-sm font-bold text-slate-700">
-                    {cell}
+              {row.map((cell, index) => {
+                const isActionColumn = columns[index]?.toLowerCase() === 'aksi'
+
+                return (
+                  <div
+                    key={columns[index]}
+                    className={`border-b border-slate-100 pb-3 last:border-0 last:pb-0 ${
+                      isActionColumn
+                        ? 'grid gap-2'
+                        : 'flex items-start justify-between gap-4'
+                    }`}
+                  >
+                    <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
+                      {columns[index]}
+                    </span>
+                    <div
+                      className={
+                        isActionColumn
+                          ? 'w-full text-sm font-bold text-slate-700'
+                          : 'max-w-[60%] text-right text-sm font-bold text-slate-700'
+                      }
+                    >
+                      {cell}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </article>
         ))}
@@ -2916,4 +2944,173 @@ function downloadReport(report: GeneratedReport) {
   link.download = `${report.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.csv`
   link.click()
   URL.revokeObjectURL(url)
+}
+
+function buildAdminAnalytics(
+  scanRecords: ScanRecord[],
+  schedules: CourseSchedule[],
+  referenceDate: Date,
+): AdminAnalytics {
+  const monthlyAttendance = buildMonthlyAttendanceSeries(scanRecords, referenceDate)
+  const sessionsPerDay = buildSessionsPerDaySeries(schedules)
+  const classPerformance = buildClassPerformanceSeries(scanRecords)
+  const statusDistribution = buildStatusDistribution(scanRecords)
+  const currentSnapshot = buildMonthlySnapshot(scanRecords, referenceDate)
+  const previousMonth = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() - 1,
+    1,
+  )
+  const previousSnapshot = buildMonthlySnapshot(scanRecords, previousMonth)
+
+  return {
+    monthlyAttendance,
+    sessionsPerDay,
+    classPerformance,
+    statusDistribution,
+    attendanceRate: currentSnapshot.attendanceRate,
+    lateRate: currentSnapshot.lateRate,
+    absentRate: currentSnapshot.absentRate,
+    attendanceTrend: formatTrendChange(
+      currentSnapshot.attendanceRate,
+      previousSnapshot.attendanceRate,
+    ),
+    lateTrend: formatTrendChange(currentSnapshot.lateRate, previousSnapshot.lateRate),
+    absentTrend: formatTrendChange(
+      currentSnapshot.absentRate,
+      previousSnapshot.absentRate,
+    ),
+    totalSessions: schedules.length,
+  }
+}
+
+function buildMonthlyAttendanceSeries(
+  scanRecords: ScanRecord[],
+  referenceDate: Date,
+): MonthlyAttendancePoint[] {
+  return Array.from({ length: 5 }, (_, index) => {
+    const monthDate = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth() - 4 + index,
+      1,
+    )
+    const snapshot = buildMonthlySnapshot(scanRecords, monthDate)
+
+    return {
+      month: monthDate.toLocaleDateString('id-ID', { month: 'short' }),
+      percentage: snapshot.attendanceRate,
+      hadir: snapshot.presentCount,
+      terlambat: snapshot.lateCount,
+      alpha: snapshot.absentCount,
+    }
+  })
+}
+
+function buildSessionsPerDaySeries(schedules: CourseSchedule[]): DaySessionsPoint[] {
+  const dayOrder = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+  const counts = new Map(dayOrder.map((day) => [day, 0]))
+
+  for (const schedule of schedules) {
+    const normalizedDay = normalizeDayName(schedule.day)
+    if (normalizedDay && counts.has(normalizedDay)) {
+      counts.set(normalizedDay, (counts.get(normalizedDay) ?? 0) + 1)
+    }
+  }
+
+  return dayOrder.map((day) => ({
+    day: day.slice(0, 3),
+    sessions: counts.get(day) ?? 0,
+  }))
+}
+
+function buildClassPerformanceSeries(
+  scanRecords: ScanRecord[],
+): ClassPerformancePoint[] {
+  const byCourse = new Map<string, { present: number; total: number }>()
+
+  for (const record of scanRecords) {
+    const current = byCourse.get(record.courseTitle) ?? { present: 0, total: 0 }
+    current.total += 1
+    if (record.status === 'Terverifikasi' || record.status === 'Terlambat') {
+      current.present += 1
+    }
+    byCourse.set(record.courseTitle, current)
+  }
+
+  return Array.from(byCourse.entries())
+    .map(([course, stats]) => ({
+      course,
+      percentage: stats.total ? Math.round((stats.present / stats.total) * 100) : 0,
+    }))
+    .sort((a, b) => b.percentage - a.percentage)
+}
+
+function buildStatusDistribution(scanRecords: ScanRecord[]) {
+  const total = scanRecords.length
+  const present = scanRecords.filter((record) => record.status === 'Terverifikasi').length
+  const late = scanRecords.filter((record) => record.status === 'Terlambat').length
+  const absent = Math.max(total - present - late, 0)
+
+  return [
+    { name: 'Hadir', value: total ? Math.round((present / total) * 100) : 0, color: '#22c55e' },
+    { name: 'Terlambat', value: total ? Math.round((late / total) * 100) : 0, color: '#f59e0b' },
+    { name: 'Tidak Hadir', value: total ? Math.round((absent / total) * 100) : 0, color: '#ef4444' },
+  ]
+}
+
+function buildMonthlySnapshot(scanRecords: ScanRecord[], referenceDate: Date) {
+  const year = referenceDate.getFullYear()
+  const month = referenceDate.getMonth()
+  const monthRecords = scanRecords.filter((record) => {
+    const recordedAt = new Date(record.recordedAt)
+    return (
+      !Number.isNaN(recordedAt.getTime()) &&
+      recordedAt.getFullYear() === year &&
+      recordedAt.getMonth() === month
+    )
+  })
+
+  const presentCount = monthRecords.filter(
+    (record) => record.status === 'Terverifikasi' || record.status === 'Terlambat',
+  ).length
+  const lateCount = monthRecords.filter((record) => record.status === 'Terlambat').length
+  const absentCount = Math.max(monthRecords.length - presentCount, 0)
+
+  return {
+    presentCount,
+    lateCount,
+    absentCount,
+    attendanceRate: monthRecords.length
+      ? Math.round((presentCount / monthRecords.length) * 100)
+      : 0,
+    lateRate: monthRecords.length
+      ? Math.round((lateCount / monthRecords.length) * 100)
+      : 0,
+    absentRate: monthRecords.length
+      ? Math.round((absentCount / monthRecords.length) * 100)
+      : 0,
+  }
+}
+
+function normalizeDayName(day?: string) {
+  if (!day) return ''
+
+  const lowerDay = day.trim().toLowerCase()
+
+  if (lowerDay.startsWith('sen')) return 'Senin'
+  if (lowerDay.startsWith('sel')) return 'Selasa'
+  if (lowerDay.startsWith('rab')) return 'Rabu'
+  if (lowerDay.startsWith('kam')) return 'Kamis'
+  if (lowerDay.startsWith('jum')) return 'Jumat'
+  if (lowerDay.startsWith('sab')) return 'Sabtu'
+  if (lowerDay.startsWith('min')) return 'Minggu'
+
+  return day
+}
+
+function formatTrendChange(currentValue: number, previousValue: number) {
+  const delta = currentValue - previousValue
+  const formattedDelta = `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}% dari bulan lalu`
+
+  return formattedDelta
 }

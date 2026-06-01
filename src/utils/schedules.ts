@@ -1,4 +1,3 @@
-import { lecturerSchedules } from '../data/mockAttendance'
 import type { CourseSchedule } from '../types/attendance'
 import { apiRequest } from './api'
 
@@ -6,7 +5,7 @@ const scheduleKey = 'scanin-admin-schedules'
 export const scheduleChangedEvent = 'scanin:schedules-changed'
 
 export const loadSchedules = (
-  fallbackSchedules: CourseSchedule[] = lecturerSchedules,
+  fallbackSchedules: CourseSchedule[] = [],
 ) => {
   if (typeof window === 'undefined') {
     return fallbackSchedules
@@ -16,14 +15,16 @@ export const loadSchedules = (
     const storedSchedules = window.localStorage.getItem(scheduleKey)
 
     if (storedSchedules) {
-      return JSON.parse(storedSchedules) as CourseSchedule[]
+      return normalizeSchedules(JSON.parse(storedSchedules))
     }
 
-    saveSchedulesLocal(fallbackSchedules)
-    return fallbackSchedules
+    const normalizedFallbackSchedules = normalizeSchedules(fallbackSchedules)
+    saveSchedulesLocal(normalizedFallbackSchedules)
+    return normalizedFallbackSchedules
   } catch {
-    saveSchedulesLocal(fallbackSchedules)
-    return fallbackSchedules
+    const normalizedFallbackSchedules = normalizeSchedules(fallbackSchedules)
+    saveSchedulesLocal(normalizedFallbackSchedules)
+    return normalizedFallbackSchedules
   }
 }
 
@@ -35,18 +36,13 @@ export const saveSchedules = (schedules: CourseSchedule[]) => {
 
 export const fetchSchedulesFromBackend = async () => {
   try {
-    const localSchedules = loadSchedules()
-
-    if (localSchedules.length) {
-      await syncSchedulesToBackend(localSchedules)
-    }
-
     const schedules = await apiRequest<CourseSchedule[]>('/schedules')
 
     if (Array.isArray(schedules) && schedules.length) {
-      saveSchedulesLocal(schedules)
+      const normalizedSchedules = normalizeSchedules(schedules)
+      saveSchedulesLocal(normalizedSchedules)
       notifyScheduleChange()
-      return schedules
+      return normalizedSchedules
     }
   } catch {
     return null
@@ -89,4 +85,28 @@ const syncSchedulesToBackend = async (schedules: CourseSchedule[]) => {
   } catch {
     // Backend sync is best-effort while the local-first demo is still usable.
   }
+}
+
+const normalizeSchedules = (schedules: unknown): CourseSchedule[] => {
+  if (!Array.isArray(schedules)) {
+    return []
+  }
+
+  return schedules.filter((schedule): schedule is CourseSchedule => {
+    if (!schedule || typeof schedule !== 'object') {
+      return false
+    }
+
+    const value = schedule as Partial<CourseSchedule>
+
+    return (
+      typeof value.id === 'string' &&
+      typeof value.title === 'string' &&
+      typeof value.time === 'string' &&
+      typeof value.room === 'string' &&
+      typeof value.lecturer === 'string' &&
+      typeof value.students === 'number' &&
+      typeof value.status === 'string'
+    )
+  })
 }

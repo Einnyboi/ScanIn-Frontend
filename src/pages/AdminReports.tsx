@@ -1,75 +1,70 @@
-import { Download, TrendingUp, TrendingDown, FileText } from "lucide-react";
+import { useEffect, useMemo, useState } from 'react'
+
 import {
-    BarChart,
     Bar,
-    LineChart,
-    Line,
-    PieChart,
-    Pie,
+    BarChart,
+    CartesianGrid,
     Cell,
+    Legend,
+    Line,
+    LineChart,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip,
     XAxis,
     YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    ResponsiveContainer,
-} from "recharts";
+} from 'recharts'
+import { Download, FileText, TrendingDown, TrendingUp } from 'lucide-react'
+
+import type { CourseSchedule, ScanRecord } from '../types/attendance'
+import {
+    fetchReportsFromBackend,
+    formatReportDate,
+    reportToCsv,
+    type GeneratedReport,
+} from '../utils/reports'
+import { fetchScanRecordsFromBackend } from '../utils/attendanceStorage'
+import { fetchSchedulesFromBackend } from '../utils/schedules'
+
+type MonthlyPoint = {
+    month: string
+    hadir: number
+    terlambat: number
+    alpha: number
+}
+
+type CoursePoint = {
+    course: string
+    percentage: number
+}
 
 export default function AdminReports() {
-    const monthlyData = [
-        { month: "Jan", hadir: 850, terlambat: 45, alpha: 25 },
-        { month: "Feb", hadir: 820, terlambat: 55, alpha: 30 },
-        { month: "Mar", hadir: 880, terlambat: 40, alpha: 20 },
-        { month: "Apr", hadir: 860, terlambat: 50, alpha: 28 },
-        { month: "May", hadir: 840, terlambat: 48, alpha: 22 },
-    ];
+    const [scanRecords, setScanRecords] = useState<ScanRecord[]>([])
+    const [schedules, setSchedules] = useState<CourseSchedule[]>([])
+    const [reports, setReports] = useState<GeneratedReport[]>([])
 
-    const classPerformance = [
-        { class: "Basis Data Lanjut", percentage: 89 },
-        { class: "Pemrograman Web", percentage: 85 },
-        { class: "Kecerdasan Buatan", percentage: 92 },
-        { class: "Sistem Operasi", percentage: 87 },
-        { class: "Jaringan Komputer", percentage: 91 },
-    ];
+    useEffect(() => {
+        void fetchScanRecordsFromBackend().then((records) => {
+            if (records) setScanRecords(records)
+        })
 
-    const statusDistribution = [
-        { name: "Hadir", value: 84, color: "#22c55e" },
-        { name: "Terlambat", value: 11, color: "#f59e0b" },
-        { name: "Tidak Hadir", value: 5, color: "#ef4444" },
-    ];
+        void fetchSchedulesFromBackend().then((items) => {
+            if (items) setSchedules(items)
+        })
 
-    const reports = [
-        {
-            id: 1,
-            title: "Laporan Kehadiran Bulanan - Mei 2026",
-            description: "Ringkasan kehadiran semua kelas untuk bulan Mei",
-            date: "20 Mei 2026",
-            type: "monthly",
-        },
-        {
-            id: 2,
-            title: "Laporan Kinerja Per Kelas - Semester Genap",
-            description: "Analisis performa kehadiran per mata kuliah",
-            date: "15 Mei 2026",
-            type: "class",
-        },
-        {
-            id: 3,
-            title: "Laporan Mahasiswa Bermasalah",
-            description: "Daftar mahasiswa dengan kehadiran di bawah 75%",
-            date: "10 Mei 2026",
-            type: "student",
-        },
-        {
-            id: 4,
-            title: "Laporan Penggunaan Sistem - April 2026",
-            description: "Statistik penggunaan sistem presensi digital",
-            date: "1 Mei 2026",
-            type: "system",
-        },
-    ];
+        void fetchReportsFromBackend().then((items) => {
+            if (items) setReports(items)
+        })
+    }, [])
 
-    const renderPieLabel = (entry: { name: string; value: number }) => `${entry.name}: ${entry.value}%`;
+    const analytics = useMemo(
+        () => buildAnalytics(scanRecords, schedules),
+        [scanRecords, schedules],
+    )
+
+    const renderPieLabel = (entry: { name: string; value: number }) =>
+        `${entry.name}: ${entry.value}%`
 
     return (
         <div className="p-8">
@@ -78,51 +73,37 @@ export default function AdminReports() {
                 <p className="text-gray-600">Statistik dan laporan sistem presensi</p>
             </div>
 
-            {/* Key Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-white rounded-xl p-6 shadow-md">
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-gray-600 text-sm">Kehadiran Rata-rata</p>
-                        <TrendingUp className="text-green-600" size={20} />
-                    </div>
-                    <p className="text-3xl font-bold text-gray-900">84%</p>
-                    <p className="text-sm text-green-600 mt-1">+2.5% dari bulan lalu</p>
-                </div>
-
-                <div className="bg-white rounded-xl p-6 shadow-md">
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-gray-600 text-sm">Keterlambatan</p>
-                        <TrendingDown className="text-yellow-600" size={20} />
-                    </div>
-                    <p className="text-3xl font-bold text-gray-900">11%</p>
-                    <p className="text-sm text-yellow-600 mt-1">-1.2% dari bulan lalu</p>
-                </div>
-
-                <div className="bg-white rounded-xl p-6 shadow-md">
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-gray-600 text-sm">Ketidakhadiran</p>
-                        <TrendingUp className="text-red-600" size={20} />
-                    </div>
-                    <p className="text-3xl font-bold text-gray-900">5%</p>
-                    <p className="text-sm text-red-600 mt-1">+0.8% dari bulan lalu</p>
-                </div>
-
-                <div className="bg-white rounded-xl p-6 shadow-md">
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-gray-600 text-sm">Total Sesi</p>
-                        <FileText className="text-blue-600" size={20} />
-                    </div>
-                    <p className="text-3xl font-bold text-gray-900">245</p>
-                    <p className="text-sm text-gray-600 mt-1">Bulan ini</p>
-                </div>
+            <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+                <MetricCard
+                    icon={<TrendingUp className="text-green-600" size={20} />}
+                    title="Kehadiran Rata-rata"
+                    trend={analytics.attendanceTrend}
+                    value={`${analytics.attendanceRate}%`}
+                />
+                <MetricCard
+                    icon={<TrendingDown className="text-yellow-600" size={20} />}
+                    title="Keterlambatan"
+                    trend={analytics.lateTrend}
+                    value={`${analytics.lateRate}%`}
+                />
+                <MetricCard
+                    icon={<TrendingUp className="text-red-600" size={20} />}
+                    title="Ketidakhadiran"
+                    trend={analytics.absentTrend}
+                    value={`${analytics.absentRate}%`}
+                />
+                <MetricCard
+                    icon={<FileText className="text-blue-600" size={20} />}
+                    title="Total Sesi"
+                    trend="Dari jadwal backend"
+                    value={`${analytics.totalSessions}`}
+                />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                {/* Monthly Trend */}
-                <div className="bg-white rounded-xl shadow-md p-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">Tren Kehadiran Bulanan</h3>
+            <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <Panel title="Tren Kehadiran Bulanan">
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={monthlyData}>
+                        <BarChart data={analytics.monthlyAttendance}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="month" />
                             <YAxis />
@@ -133,15 +114,13 @@ export default function AdminReports() {
                             <Bar dataKey="alpha" fill="#ef4444" name="Alpha" />
                         </BarChart>
                     </ResponsiveContainer>
-                </div>
+                </Panel>
 
-                {/* Class Performance */}
-                <div className="bg-white rounded-xl shadow-md p-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">Performa Per Mata Kuliah</h3>
+                <Panel title="Performa Per Mata Kuliah">
                     <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={classPerformance}>
+                        <LineChart data={analytics.classPerformance}>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="class" angle={-15} textAnchor="end" height={80} />
+                            <XAxis dataKey="course" angle={-15} textAnchor="end" height={80} />
                             <YAxis domain={[0, 100]} />
                             <Tooltip />
                             <Legend />
@@ -154,17 +133,15 @@ export default function AdminReports() {
                             />
                         </LineChart>
                     </ResponsiveContainer>
-                </div>
+                </Panel>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                {/* Status Distribution */}
-                <div className="bg-white rounded-xl shadow-md p-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">Distribusi Status</h3>
+            <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <Panel title="Distribusi Status">
                     <ResponsiveContainer width="100%" height={250}>
                         <PieChart>
                             <Pie
-                                data={statusDistribution}
+                                data={analytics.statusDistribution}
                                 cx="50%"
                                 cy="50%"
                                 labelLine={false}
@@ -173,83 +150,251 @@ export default function AdminReports() {
                                 fill="#8884d8"
                                 dataKey="value"
                             >
-                                {statusDistribution.map((entry, index) => (
+                                {analytics.statusDistribution.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.color} />
                                 ))}
                             </Pie>
                             <Tooltip />
                         </PieChart>
                     </ResponsiveContainer>
-                </div>
+                </Panel>
 
-                {/* Top Classes */}
-                <div className="bg-white rounded-xl shadow-md p-6 lg:col-span-2">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">Peringkat Kehadiran Per Kelas</h3>
-                    <div className="space-y-4">
-                        {classPerformance
-                            .sort((a, b) => b.percentage - a.percentage)
-                            .map((item, index) => (
-                                <div key={item.class}>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-3">
-                                            <div
-                                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${index === 0
-                                                    ? "bg-yellow-500"
-                                                    : index === 1
-                                                        ? "bg-gray-400"
-                                                        : index === 2
-                                                            ? "bg-orange-600"
-                                                            : "bg-gray-300"
-                                                    }`}
-                                            >
-                                                {index + 1}
-                                            </div>
-                                            <span className="font-medium text-gray-900">{item.class}</span>
-                                        </div>
-                                        <span className="font-bold text-[#5C3386]">{item.percentage}%</span>
+                <Panel title="Sesi Per Hari (Backend)">
+                    <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={buildSessionsPerDaySeries(schedules)}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="day" />
+                            <YAxis />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="sessions" fill="#5C3386" name="Jumlah Sesi" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </Panel>
+
+                <Panel title="Laporan Tersedia">
+                    <div className="space-y-3">
+                        {reports.map((report) => (
+                            <article
+                                key={report.id}
+                                className="rounded-lg border border-gray-200 p-4 transition-colors hover:border-[#5C3386]"
+                            >
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <h4 className="mb-1 font-bold text-gray-900">{report.title}</h4>
+                                        <p className="mb-2 text-sm text-gray-600">{report.description}</p>
+                                        <p className="text-xs text-gray-500">Dibuat: {formatReportDate(report.createdAt)}</p>
                                     </div>
-                                    <div className="w-full bg-gray-200 rounded-full h-2">
-                                        <div
-                                            className="bg-[#5C3386] h-2 rounded-full transition-all"
-                                            style={{ width: `${item.percentage}%` }}
-                                        />
-                                    </div>
+                                    <button
+                                        className="ml-4 flex items-center gap-2 rounded-lg border border-[#5C3386] px-4 py-2 text-[#5C3386] transition-colors hover:bg-[#5C3386] hover:text-white"
+                                        onClick={() => downloadReport(report)}
+                                        type="button"
+                                    >
+                                        <Download size={16} />
+                                        Download
+                                    </button>
                                 </div>
-                            ))}
+                            </article>
+                        ))}
+                        {!reports.length ? (
+                            <p className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm font-semibold text-gray-500">
+                                Belum ada laporan dari backend.
+                            </p>
+                        ) : null}
                     </div>
-                </div>
-            </div>
-
-            {/* Reports List */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-bold text-gray-900">Laporan Tersedia</h3>
-                    <button className="px-4 py-2 bg-[#5C3386] text-white rounded-lg hover:bg-[#4a2a6b] transition-colors flex items-center gap-2">
-                        <FileText size={18} />
-                        Generate Laporan Baru
-                    </button>
-                </div>
-                <div className="space-y-3">
-                    {reports.map((report) => (
-                        <div
-                            key={report.id}
-                            className="border border-gray-200 rounded-lg p-4 hover:border-[#5C3386] transition-colors"
-                        >
-                            <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                    <h4 className="font-bold text-gray-900 mb-1">{report.title}</h4>
-                                    <p className="text-sm text-gray-600 mb-2">{report.description}</p>
-                                    <p className="text-xs text-gray-500">Dibuat: {report.date}</p>
-                                </div>
-                                <button className="ml-4 px-4 py-2 border border-[#5C3386] text-[#5C3386] rounded-lg hover:bg-[#5C3386] hover:text-white transition-colors flex items-center gap-2">
-                                    <Download size={16} />
-                                    Download
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                </Panel>
             </div>
         </div>
-    );
+    )
+}
+
+function MetricCard({
+    icon,
+    title,
+    trend,
+    value,
+}: {
+    icon: React.ReactNode
+    title: string
+    trend: string
+    value: string
+}) {
+    return (
+        <div className="rounded-xl bg-white p-6 shadow-md">
+            <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm text-gray-600">{title}</p>
+                {icon}
+            </div>
+            <p className="text-3xl font-bold text-gray-900">{value}</p>
+            <p className="mt-1 text-sm text-gray-600">{trend}</p>
+        </div>
+    )
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <div className="rounded-xl bg-white p-6 shadow-md">
+            <h3 className="mb-4 text-xl font-bold text-gray-900">{title}</h3>
+            {children}
+        </div>
+    )
+}
+
+function downloadReport(report: GeneratedReport) {
+    const blob = new Blob([reportToCsv(report)], {
+        type: 'text/csv;charset=utf-8;'
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${report.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+}
+
+function buildAnalytics(scanRecords: ScanRecord[], schedules: CourseSchedule[]) {
+    const monthlyAttendance = buildMonthlyAttendanceSeries(scanRecords, new Date())
+    const classPerformance = buildClassPerformanceSeries(scanRecords)
+    const statusDistribution = buildStatusDistribution(scanRecords)
+    const currentSnapshot = buildMonthlySnapshot(scanRecords, new Date())
+    const previousSnapshot = buildMonthlySnapshot(
+        scanRecords,
+        new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1),
+    )
+
+    return {
+        monthlyAttendance,
+        classPerformance,
+        statusDistribution,
+        attendanceRate: currentSnapshot.attendanceRate,
+        lateRate: currentSnapshot.lateRate,
+        absentRate: currentSnapshot.absentRate,
+        attendanceTrend: formatTrend(currentSnapshot.attendanceRate, previousSnapshot.attendanceRate),
+        lateTrend: formatTrend(currentSnapshot.lateRate, previousSnapshot.lateRate),
+        absentTrend: formatTrend(currentSnapshot.absentRate, previousSnapshot.absentRate),
+        totalSessions: schedules.length,
+    }
+}
+
+function buildMonthlyAttendanceSeries(
+    scanRecords: ScanRecord[],
+    referenceDate: Date,
+): MonthlyPoint[] {
+    return Array.from({ length: 5 }, (_, index) => {
+        const monthDate = new Date(
+            referenceDate.getFullYear(),
+            referenceDate.getMonth() - 4 + index,
+            1,
+        )
+        const snapshot = buildMonthlySnapshot(scanRecords, monthDate)
+
+        return {
+            month: monthDate.toLocaleDateString('id-ID', { month: 'short' }),
+            hadir: snapshot.presentCount,
+            terlambat: snapshot.lateCount,
+            alpha: snapshot.absentCount,
+        }
+    })
+}
+
+function buildClassPerformanceSeries(scanRecords: ScanRecord[]): CoursePoint[] {
+    const byCourse = new Map<string, { present: number; total: number }>()
+
+    for (const record of scanRecords) {
+        const current = byCourse.get(record.courseTitle) ?? { present: 0, total: 0 }
+        current.total += 1
+        if (record.status === 'Terverifikasi' || record.status === 'Terlambat') {
+            current.present += 1
+        }
+        byCourse.set(record.courseTitle, current)
+    }
+
+    return Array.from(byCourse.entries())
+        .map(([course, stats]) => ({
+            course,
+            percentage: stats.total ? Math.round((stats.present / stats.total) * 100) : 0,
+        }))
+        .sort((a, b) => b.percentage - a.percentage)
+}
+
+function buildStatusDistribution(scanRecords: ScanRecord[]) {
+    const total = scanRecords.length
+    const present = scanRecords.filter((record) => record.status === 'Terverifikasi').length
+    const late = scanRecords.filter((record) => record.status === 'Terlambat').length
+    const absent = Math.max(total - present - late, 0)
+
+    return [
+        { name: 'Hadir', value: total ? Math.round((present / total) * 100) : 0, color: '#22c55e' },
+        { name: 'Terlambat', value: total ? Math.round((late / total) * 100) : 0, color: '#f59e0b' },
+        { name: 'Tidak Hadir', value: total ? Math.round((absent / total) * 100) : 0, color: '#ef4444' },
+    ]
+}
+
+function buildMonthlySnapshot(scanRecords: ScanRecord[], referenceDate: Date) {
+    const monthRecords = scanRecords.filter((record) => {
+        const recordedAt = new Date(record.recordedAt)
+        return (
+            !Number.isNaN(recordedAt.getTime()) &&
+            recordedAt.getFullYear() === referenceDate.getFullYear() &&
+            recordedAt.getMonth() === referenceDate.getMonth()
+        )
+    })
+
+    const presentCount = monthRecords.filter(
+        (record) => record.status === 'Terverifikasi' || record.status === 'Terlambat',
+    ).length
+    const lateCount = monthRecords.filter((record) => record.status === 'Terlambat').length
+    const absentCount = Math.max(monthRecords.length - presentCount, 0)
+
+    return {
+        presentCount,
+        lateCount,
+        absentCount,
+        attendanceRate: monthRecords.length
+            ? Math.round((presentCount / monthRecords.length) * 100)
+            : 0,
+        lateRate: monthRecords.length
+            ? Math.round((lateCount / monthRecords.length) * 100)
+            : 0,
+        absentRate: monthRecords.length
+            ? Math.round((absentCount / monthRecords.length) * 100)
+            : 0,
+    }
+}
+
+function formatTrend(currentValue: number, previousValue: number) {
+    const delta = currentValue - previousValue
+    return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}% dari bulan lalu`
+}
+
+function buildSessionsPerDaySeries(schedules: CourseSchedule[]) {
+    const dayOrder = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+    const counts = new Map(dayOrder.map((day) => [day, 0]))
+
+    for (const schedule of schedules) {
+        const normalizedDay = normalizeDayName(schedule.day)
+        if (normalizedDay && counts.has(normalizedDay)) {
+            counts.set(normalizedDay, (counts.get(normalizedDay) ?? 0) + 1)
+        }
+    }
+
+    return dayOrder.map((day) => ({
+        day: day.slice(0, 3),
+        sessions: counts.get(day) ?? 0,
+    }))
+}
+
+function normalizeDayName(day?: string) {
+    if (!day) return ''
+
+    const lowerDay = day.trim().toLowerCase()
+    if (lowerDay.startsWith('sen')) return 'Senin'
+    if (lowerDay.startsWith('sel')) return 'Selasa'
+    if (lowerDay.startsWith('rab')) return 'Rabu'
+    if (lowerDay.startsWith('kam')) return 'Kamis'
+    if (lowerDay.startsWith('jum')) return 'Jumat'
+    if (lowerDay.startsWith('sab')) return 'Sabtu'
+    if (lowerDay.startsWith('min')) return 'Minggu'
+
+    return day
 }

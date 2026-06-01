@@ -1,9 +1,10 @@
 import type { Role } from '../types/auth'
 import { apiRequest } from './api'
+import { normalizeIdentity } from './identity'
 
 type BackendLoginResponse = {
   access_token: string
-  role: string
+  role?: string
 }
 
 type BackendUser = {
@@ -18,42 +19,54 @@ export type BackendSessionProfile = {
   identity: string
   name: string
   email: string
+  token: string
 }
 
 export const loginWithBackend = async (
-  email: string,
+  usernameOrEmail: string,
   password: string,
 ): Promise<BackendSessionProfile | null> => {
   try {
     const login = await apiRequest<BackendLoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        username: usernameOrEmail,
+        password,
+      }),
     })
+
+    localStorage.setItem('scanin_token', login.access_token)
+
     const user = await apiRequest<BackendUser>('/auth/me', {
       headers: {
         Authorization: `Bearer ${login.access_token}`,
       },
     })
 
+    const role = mapBackendRole(user.role || login.role || '')
+
     return {
-      role: mapBackendRole(user.role || login.role),
-      identity: user.id,
+      role,
+      identity: normalizeIdentity({
+        role,
+        identity: user.id,
+        email: user.username,
+      }),
       name: user.nama,
       email: user.username,
+      token: login.access_token,
     }
-  } catch {
+  } catch (error) {
+    console.error('Login backend gagal:', error)
     return null
   }
 }
 
 const mapBackendRole = (role: string): Role => {
-  if (role === 'ADMIN') {
-    return 'admin'
-  }
+  const normalizedRole = role.toUpperCase()
 
-  if (role === 'DOSEN' || role === 'ASDOS') {
-    return 'pengajar'
-  }
+  if (normalizedRole === 'ADMIN') return 'admin'
+  if (normalizedRole === 'DOSEN' || normalizedRole === 'ASDOS') return 'pengajar'
 
   return 'mahasiswa'
 }

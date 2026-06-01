@@ -10,19 +10,9 @@ const notifyTicketsChanged = () => {
   }
 }
 
-const persistTickets = (
-  tickets: CorrectionTicket[],
-  shouldSyncBackend = true,
-) => {
+const persistTickets = (tickets: CorrectionTicket[]) => {
   window.localStorage.setItem(ticketKey, JSON.stringify(tickets))
   notifyTicketsChanged()
-
-  if (shouldSyncBackend) {
-    void apiRequest<CorrectionTicket[]>('/tickets', {
-      method: 'PUT',
-      body: JSON.stringify(tickets),
-    }).catch(() => undefined)
-  }
 }
 
 export const loadStoredTickets = (): CorrectionTicket[] => {
@@ -48,22 +38,34 @@ export const loadCorrectionTickets = (defaultTickets: CorrectionTicket[]) => {
 }
 
 export const saveCorrectionTicket = (ticket: CorrectionTicket) => {
-  const storedTickets = loadStoredTickets()
-  persistTickets([ticket, ...storedTickets])
+  return apiRequest<CorrectionTicket>('/tickets', {
+    method: 'POST',
+    body: JSON.stringify(ticket),
+  }).then((createdTicket) => {
+    const storedTickets = loadStoredTickets()
+    persistTickets([
+      createdTicket,
+      ...storedTickets.filter((item) => item.id !== createdTicket.id),
+    ])
+    return createdTicket
+  })
 }
 
 export const updateStoredTicket = (updatedTicket: CorrectionTicket) => {
-  const storedTickets = loadStoredTickets()
-  const hasExistingTicket = storedTickets.some(
-    (ticket) => ticket.id === updatedTicket.id,
-  )
-  const nextTickets = hasExistingTicket
-    ? storedTickets.map((ticket) =>
-        ticket.id === updatedTicket.id ? updatedTicket : ticket,
-      )
-    : [updatedTicket, ...storedTickets]
+  return apiRequest<CorrectionTicket>(`/tickets/${updatedTicket.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updatedTicket),
+  }).then((savedTicket) => {
+    const storedTickets = loadStoredTickets()
+    const nextTickets = storedTickets.some((ticket) => ticket.id === savedTicket.id)
+      ? storedTickets.map((ticket) =>
+          ticket.id === savedTicket.id ? savedTicket : ticket,
+        )
+      : [savedTicket, ...storedTickets]
 
-  persistTickets(nextTickets)
+    persistTickets(nextTickets)
+    return savedTicket
+  })
 }
 
 export const fetchTicketsFromBackend = async (
@@ -72,15 +74,14 @@ export const fetchTicketsFromBackend = async (
   try {
     const tickets = await apiRequest<CorrectionTicket[]>('/tickets')
 
-    if (!tickets.length) {
-      const fallbackTickets = loadCorrectionTickets(defaultTickets)
-      persistTickets(fallbackTickets)
-      return fallbackTickets
+    persistTickets(tickets)
+    return tickets
+  } catch {
+    const storedTickets = loadStoredTickets()
+    if (storedTickets.length) {
+      return storedTickets
     }
 
-    persistTickets(tickets, false)
-    return loadCorrectionTickets(defaultTickets)
-  } catch {
-    return null
+    return defaultTickets
   }
 }

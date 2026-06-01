@@ -22,87 +22,16 @@ export type ReportKind =
 const reportKey = 'scanin-generated-reports'
 export const reportsChangedEvent = 'scanin:reports-changed'
 
-const defaultReports: GeneratedReport[] = [
-  {
-    id: 'laporan-mei-2026',
-    kind: 'attendance',
-    title: 'Laporan Kehadiran Bulanan - Mei 2026',
-    description: 'Ringkasan kehadiran semua kelas untuk bulan Mei',
-    createdAt: '2026-05-20T08:00:00.000Z',
-    month: 'Mei 2026',
-    averageAttendance: 84,
-    latePercentage: 11,
-    absentPercentage: 5,
-    totalSessions: 245,
-  },
-  {
-    id: 'laporan-penggunaan-sistem-mei-2026',
-    kind: 'system-usage',
-    title: 'Laporan Penggunaan Sistem - Mei 2026',
-    description: 'Statistik login, scan QR, tiket, dan aktivitas admin',
-    createdAt: '2026-05-20T08:10:00.000Z',
-    month: 'Mei 2026',
-    averageAttendance: 84,
-    latePercentage: 11,
-    absentPercentage: 5,
-    totalSessions: 245,
-  },
-  {
-    id: 'laporan-kinerja-kelas-genap-2026',
-    kind: 'class-performance',
-    title: 'Laporan Kinerja Per Kelas - Semester Genap',
-    description: 'Analisis performa kehadiran per mata kuliah',
-    createdAt: '2026-05-15T08:00:00.000Z',
-    month: 'Semester Genap 2026',
-    averageAttendance: 88,
-    latePercentage: 9,
-    absentPercentage: 3,
-    totalSessions: 180,
-  },
-  {
-    id: 'laporan-mahasiswa-bermasalah-mei-2026',
-    kind: 'at-risk-students',
-    title: 'Laporan Mahasiswa Bermasalah - Mei 2026',
-    description: 'Daftar mahasiswa dengan kehadiran rendah atau tiket berulang',
-    createdAt: '2026-05-10T08:00:00.000Z',
-    month: 'Mei 2026',
-    averageAttendance: 72,
-    latePercentage: 18,
-    absentPercentage: 10,
-    totalSessions: 245,
-  },
-]
-
 export const loadGeneratedReports = () => {
   if (typeof window === 'undefined') {
-    return defaultReports
+    return []
   }
 
   try {
     const storedReports = window.localStorage.getItem(reportKey)
-
-    if (storedReports) {
-      const parsedReports = JSON.parse(storedReports) as GeneratedReport[]
-      const existingKinds = new Set(
-        parsedReports.map((report) => report.kind ?? 'attendance'),
-      )
-      const missingDefaults = defaultReports.filter(
-        (report) => !existingKinds.has(report.kind ?? 'attendance'),
-      )
-      const mergedReports = [...parsedReports, ...missingDefaults]
-
-      if (missingDefaults.length) {
-        saveReportsLocal(mergedReports)
-      }
-
-      return mergedReports
-    }
-
-    saveReportsLocal(defaultReports)
-    return defaultReports
+    return storedReports ? (JSON.parse(storedReports) as GeneratedReport[]) : []
   } catch {
-    saveReportsLocal(defaultReports)
-    return defaultReports
+    return []
   }
 }
 
@@ -114,12 +43,6 @@ export const saveGeneratedReports = (reports: GeneratedReport[]) => {
 
 export const fetchReportsFromBackend = async () => {
   try {
-    const localReports = loadGeneratedReports()
-
-    if (localReports.length) {
-      await syncReportsToBackend(localReports)
-    }
-
     const reports = await apiRequest<GeneratedReport[]>('/reports')
 
     if (Array.isArray(reports) && reports.length) {
@@ -128,10 +51,10 @@ export const fetchReportsFromBackend = async () => {
       return reports
     }
   } catch {
-    return null
+    return loadGeneratedReports()
   }
 
-  return null
+  return loadGeneratedReports()
 }
 
 export const createGeneratedReport = (

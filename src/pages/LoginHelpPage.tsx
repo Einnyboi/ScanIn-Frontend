@@ -10,7 +10,16 @@ type LoginHelpPageProps = {
   onBack: () => void
 }
 
-const categories: Record<Role, string[]> = {
+type SupportRole = 'mahasiswa' | 'pengajar'
+
+const supportRoleOptions = roleOptions.filter(
+  (option) => option.id !== 'admin',
+) as Array<(typeof roleOptions)[number] & { id: SupportRole }>
+
+const getInitialSupportRole = (role: Role): SupportRole =>
+  role === 'pengajar' ? 'pengajar' : 'mahasiswa'
+
+const categories: Record<SupportRole, string[]> = {
   mahasiswa: [
     'Tidak bisa login akun mahasiswa',
     'Email @stu.untar.ac.id tidak dikenali',
@@ -23,15 +32,15 @@ const categories: Record<Role, string[]> = {
     'Jadwal mengajar tidak muncul',
     'Scanner QR bermasalah',
   ],
-  admin: ['Tidak bisa login admin', 'Data admin tidak sinkron'],
 }
 
 export function LoginHelpPage({ initialRole, onBack }: LoginHelpPageProps) {
-  const [role, setRole] = useState<Role>(initialRole)
+  const initialSupportRole = getInitialSupportRole(initialRole)
+  const [role, setRole] = useState<SupportRole>(initialSupportRole)
   const [email, setEmail] = useState('')
   const [identity, setIdentity] = useState('')
   const [name, setName] = useState('')
-  const [category, setCategory] = useState(categories[initialRole][0])
+  const [category, setCategory] = useState(categories[initialSupportRole][0])
   const [message, setMessage] = useState('')
   const [notice, setNotice] = useState('')
   const activeRole = useMemo(
@@ -39,7 +48,7 @@ export function LoginHelpPage({ initialRole, onBack }: LoginHelpPageProps) {
     [role],
   )
 
-  const handleRoleChange = (nextRole: Role) => {
+  const handleRoleChange = (nextRole: SupportRole) => {
     setRole(nextRole)
     setCategory(categories[nextRole][0])
     setNotice('')
@@ -57,7 +66,7 @@ export function LoginHelpPage({ initialRole, onBack }: LoginHelpPageProps) {
       setNotice(
         role === 'mahasiswa'
           ? 'Mahasiswa wajib memakai email @stu.untar.ac.id.'
-          : 'Pengajar dan admin wajib memakai email @untar.ac.id.',
+          : 'Pengajar wajib memakai email @untar.ac.id.',
       )
       return
     }
@@ -103,15 +112,15 @@ export function LoginHelpPage({ initialRole, onBack }: LoginHelpPageProps) {
             Bantuan Admin Fakultas
           </p>
           <h1 className="mt-3 text-3xl font-black text-[#5c3386]">
-            Laporkan kendala akses
+            Laporkan kendala akses akun
           </h1>
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
-            Form ini masuk ke panel admin. Kategori bantuan menyesuaikan role
-            mahasiswa atau pengajar.
+            Form ini khusus untuk mahasiswa dan pengajar. Laporan akan masuk ke
+            panel admin fakultas untuk ditindaklanjuti.
           </p>
 
-          <div className="mt-6 grid grid-cols-3 rounded-[8px] bg-slate-100 p-1">
-            {roleOptions.map((option) => (
+          <div className="mt-6 grid grid-cols-2 rounded-[8px] bg-slate-100 p-1">
+            {supportRoleOptions.map((option) => (
               <button
                 key={option.id}
                 type="button"

@@ -49,15 +49,6 @@ export const saveStoredScanRecords = (
 
 export const fetchScanRecordsFromBackend = async () => {
   try {
-    const localRecords = loadStoredScanRecords()
-
-    if (localRecords.length) {
-      await apiRequest<ScanRecord[]>('/attendance-records', {
-        method: 'PUT',
-        body: JSON.stringify(localRecords),
-      })
-    }
-
     const records = await apiRequest<ScanRecord[]>('/attendance-records')
 
     if (Array.isArray(records)) {

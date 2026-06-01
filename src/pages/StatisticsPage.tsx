@@ -1,4 +1,7 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+
+import type { CourseSchedule, CorrectionTicket, ScanRecord } from '../types/attendance'
+import { apiRequest } from '../utils/api'
 
 export type StatisticsMode =
   | 'student-attendance'
@@ -11,6 +14,7 @@ export type StatisticsMode =
 type StatisticsPageProps = {
   mode: StatisticsMode
   onBack: () => void
+  studentId?: string
 }
 
 type WeeklyAttendance = {
@@ -39,6 +43,14 @@ type SummaryItem = {
   label: string
   value: string
   tone?: 'default' | 'green' | 'yellow' | 'red'
+}
+
+function summaryItem(
+  label: string,
+  value: string,
+  tone?: SummaryItem['tone'],
+): SummaryItem {
+  return tone ? { label, value, tone } : { label, value }
 }
 
 const purple = '#5c3386'
@@ -175,8 +187,124 @@ const sessionDetails = [
   },
 ]
 
-export function StatisticsPage({ mode, onBack }: StatisticsPageProps) {
+export function StatisticsPage({ mode, onBack, studentId }: StatisticsPageProps) {
+  const [attendanceRecords, setAttendanceRecords] = useState<ScanRecord[]>([])
+  const [tickets, setTickets] = useState<CorrectionTicket[]>([])
+  const [schedules, setSchedules] = useState<CourseSchedule[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadStatisticsData = async () => {
+      const [attendanceResult, ticketResult, scheduleResult] = await Promise.allSettled([
+        apiRequest<ScanRecord[]>('/attendance-records'),
+        apiRequest<CorrectionTicket[]>('/tickets'),
+        apiRequest<CourseSchedule[]>('/schedules'),
+      ])
+
+      if (!isActive) {
+        return
+      }
+
+      if (attendanceResult.status === 'fulfilled') {
+        setAttendanceRecords(
+          Array.isArray(attendanceResult.value) ? attendanceResult.value : [],
+        )
+      }
+
+      if (ticketResult.status === 'fulfilled') {
+        setTickets(Array.isArray(ticketResult.value) ? ticketResult.value : [])
+      }
+
+      if (scheduleResult.status === 'fulfilled') {
+        setSchedules(Array.isArray(scheduleResult.value) ? scheduleResult.value : [])
+      }
+
+      setIsLoading(false)
+    }
+
+    void loadStatisticsData().catch(() => {
+      if (isActive) {
+        setAttendanceRecords([])
+        setTickets([])
+        setSchedules([])
+        setIsLoading(false)
+      }
+    })
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const attendanceStats = useMemo(
+    () => buildAttendanceStatistics(attendanceRecords, studentId),
+    [attendanceRecords, studentId],
+  )
+  const lateStats = useMemo(
+    () => buildLateStatistics(attendanceRecords, studentId),
+    [attendanceRecords, studentId],
+  )
+  const ticketStats = useMemo(() => buildTicketStatistics(tickets), [tickets])
+  const sessionStats = useMemo(
+    () => buildSessionStatistics(schedules, attendanceRecords),
+    [attendanceRecords, schedules],
+  )
+
   const page = getStatisticsConfig(mode)
+  let summaryItems: SummaryItem[] = [...page.summary]
+
+  if (page.kind === 'attendance' && attendanceStats.summary.length) {
+    summaryItems = [...attendanceStats.summary]
+  } else if (page.kind === 'late' && lateStats.summary.length) {
+    summaryItems = [...lateStats.summary]
+  } else if (page.kind === 'ticket' && ticketStats.summary.length) {
+    summaryItems = [...ticketStats.summary]
+  } else if (page.kind === 'session' && sessionStats.summary.length) {
+    summaryItems = [...sessionStats.summary]
+  }
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-slate-50 text-slate-950">
+        <header className="border-b border-slate-200 bg-white px-4 py-5 sm:px-8">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-3 text-sm font-black text-slate-600 transition hover:text-[#5c3386] sm:text-base"
+          >
+            <span aria-hidden="true" className="text-2xl leading-none">
+              &larr;
+            </span>
+            Kembali ke Dashboard
+          </button>
+          <h1 className="mt-5 text-3xl font-black tracking-normal text-slate-950 sm:text-4xl">
+            {page.title}
+          </h1>
+        </header>
+
+        <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-8">
+          <section className="grid gap-4 md:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-32 animate-pulse rounded-lg border border-white bg-white p-6 shadow-lg shadow-slate-900/8"
+              />
+            ))}
+          </section>
+
+          <section className="rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/8 sm:p-7">
+            <div className="h-6 w-48 animate-pulse rounded bg-slate-100" />
+            <div className="mt-6 space-y-4">
+              <div className="h-64 animate-pulse rounded-lg bg-slate-100" />
+              <div className="h-64 animate-pulse rounded-lg bg-slate-100" />
+            </div>
+          </section>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
@@ -198,7 +326,7 @@ export function StatisticsPage({ mode, onBack }: StatisticsPageProps) {
 
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-8">
         <section className="grid gap-4 md:grid-cols-4">
-          {page.summary.map((item) => (
+          {summaryItems.map((item) => (
             <SummaryCard key={item.label} item={item} />
           ))}
         </section>
@@ -206,12 +334,22 @@ export function StatisticsPage({ mode, onBack }: StatisticsPageProps) {
         {page.kind === 'attendance' ? (
           <>
             <ChartCard title="Grafik Kehadiran Mingguan">
-              <WeeklyBarChart data={weeklyAttendance} />
+              <WeeklyBarChart
+                data={
+                  attendanceStats.weeklyAttendance.length
+                    ? attendanceStats.weeklyAttendance
+                    : weeklyAttendance
+                }
+              />
             </ChartCard>
             <ChartCard title="Persentase Kehadiran Bulanan">
               <LineChart
                 color={purple}
-                data={monthlyAttendance}
+                data={
+                  attendanceStats.monthlyAttendance.length
+                    ? attendanceStats.monthlyAttendance
+                    : monthlyAttendance
+                }
                 label="Persentase (%)"
                 maxValue={100}
                 ticks={[0, 25, 50, 75, 100]}
@@ -226,7 +364,7 @@ export function StatisticsPage({ mode, onBack }: StatisticsPageProps) {
             <ChartCard title="Tren Keterlambatan Mingguan">
               <LineChart
                 color={yellow}
-                data={weeklyLate}
+                data={lateStats.weeklyLate.length ? lateStats.weeklyLate : weeklyLate}
                 label="Jumlah Terlambat"
                 maxValue={2}
                 ticks={[0, 0.5, 1, 1.5, 2]}
@@ -236,12 +374,16 @@ export function StatisticsPage({ mode, onBack }: StatisticsPageProps) {
             <DetailTable
               columns={['Tanggal', 'Mata Kuliah', 'Jam Masuk', 'Keterlambatan']}
               title="Detail Keterlambatan"
-              rows={lateDetails.map((detail) => [
-                detail.date,
-                detail.course,
-                detail.time,
-                detail.late,
-              ])}
+              rows={
+                lateStats.detailRows.length
+                  ? lateStats.detailRows
+                  : lateDetails.map((detail) => [
+                      detail.date,
+                      detail.course,
+                      detail.time,
+                      detail.late,
+                    ])
+              }
               tone="yellow"
             />
           </>
@@ -252,7 +394,7 @@ export function StatisticsPage({ mode, onBack }: StatisticsPageProps) {
             <ChartCard title="Tren Tiket Koreksi">
               <LineChart
                 color={red}
-                data={ticketTrend}
+                data={ticketStats.trend.length ? ticketStats.trend : ticketTrend}
                 label="Jumlah Tiket"
                 maxValue={2}
                 ticks={[0, 1, 2]}
@@ -262,11 +404,15 @@ export function StatisticsPage({ mode, onBack }: StatisticsPageProps) {
             <DetailTable
               columns={['Tanggal', 'Mata Kuliah', 'Status']}
               title="Detail Tiket Koreksi"
-              rows={ticketDetails.map((detail) => [
-                detail.date,
-                detail.course,
-                detail.status,
-              ])}
+              rows={
+                ticketStats.detailRows.length
+                  ? ticketStats.detailRows
+                  : ticketDetails.map((detail) => [
+                      detail.date,
+                      detail.course,
+                      detail.status,
+                    ])
+              }
               tone="red"
             />
           </>
@@ -274,19 +420,24 @@ export function StatisticsPage({ mode, onBack }: StatisticsPageProps) {
 
         {page.kind === 'session' ? (
           <>
-            <ChartCard title="Grafik Sesi Absensi Mingguan">
-              <SessionBarChart data={weeklySessions} />
+            <ChartCard title="Grafik Sesi Absensi Harian">
+              <SessionBarChart
+                data={sessionStats.weeklySessions.length ? sessionStats.weeklySessions : weeklySessions}
+              />
             </ChartCard>
             <DetailTable
-              columns={['Tanggal', 'Mata Kuliah', 'Sesi Dibuka', 'Tutup Sesi', 'Status']}
+              columns={['Hari', 'Mata Kuliah', 'Jam', 'Status']}
               title="Detail Sesi Absensi"
-              rows={sessionDetails.map((detail) => [
-                detail.date,
-                detail.course,
-                detail.openedAt,
-                detail.closedAt,
-                detail.status,
-              ])}
+              rows={
+                sessionStats.detailRows.length
+                  ? sessionStats.detailRows
+                  : sessionDetails.map((detail) => [
+                      detail.date,
+                      detail.course,
+                      detail.openedAt,
+                      detail.status,
+                    ])
+              }
               tone="purple"
             />
           </>
@@ -307,9 +458,11 @@ function SummaryCard({ item }: { item: SummaryItem }) {
           : 'text-slate-950'
 
   return (
-    <div className="rounded-[8px] border border-white bg-white p-6 shadow-lg shadow-slate-900/8">
+    <div className="rounded-lg border border-white bg-white p-4 shadow-lg shadow-slate-900/8 sm:p-6">
       <p className="text-sm font-bold text-slate-500">{item.label}</p>
-      <p className={`mt-4 text-4xl font-black ${valueColor}`}>{item.value}</p>
+      <p className={`mt-3 text-3xl font-black sm:mt-4 sm:text-4xl ${valueColor}`}>
+        {item.value}
+      </p>
     </div>
   )
 }
@@ -322,9 +475,14 @@ function ChartCard({
   children: ReactNode
 }) {
   return (
-    <section className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/8 sm:p-7">
-      <h2 className="text-2xl font-black text-slate-950">{title}</h2>
-      <div className="mt-6 overflow-x-auto pb-2">{children}</div>
+    <section className="rounded-lg border border-white bg-white p-4 shadow-lg shadow-slate-900/8 sm:p-7">
+      <h2 className="text-xl font-black text-slate-950 sm:text-2xl">{title}</h2>
+      <div className="-mx-4 mt-5 overflow-x-auto overscroll-x-contain px-4 pb-3 sm:mx-0 sm:mt-6 sm:px-0">
+        <div className="min-w-[760px] sm:min-w-0">{children}</div>
+      </div>
+      <p className="mt-1 text-xs font-bold text-slate-400 sm:hidden">
+        Geser grafik ke samping untuk melihat semua data.
+      </p>
     </section>
   )
 }
@@ -355,7 +513,7 @@ function WeeklyBarChart({ data }: { data: WeeklyAttendance[] }) {
       : chartLeft + selectedIndex * groupWidth + groupWidth / 2
 
   return (
-    <div className="min-w-[900px]">
+    <div className="min-w-[720px] lg:min-w-0">
       <p className="mb-3 text-sm font-bold text-slate-500">
         Klik bar grafik untuk melihat detail hadir, terlambat, dan alpha.
       </p>
@@ -511,9 +669,9 @@ function SessionBarChart({ data }: { data: SessionStatistics[] }) {
   const maxValue = 5
   const groupWidth = chartWidth / data.length
   const bars = [
-    { key: 'opened' as const, color: purple, label: 'Sesi dibuka' },
-    { key: 'closed' as const, color: green, label: 'Tutup manual' },
-    { key: 'autoClosed' as const, color: yellow, label: 'Auto-close' },
+    { key: 'opened' as const, color: purple, label: 'Total jadwal' },
+    { key: 'closed' as const, color: green, label: 'Aktif' },
+    { key: 'autoClosed' as const, color: yellow, label: 'Menunggu' },
   ]
 
   const yPosition = (value: number) =>
@@ -526,9 +684,9 @@ function SessionBarChart({ data }: { data: SessionStatistics[] }) {
       : chartLeft + selectedIndex * groupWidth + groupWidth / 2
 
   return (
-    <div className="min-w-[900px]">
+    <div className="min-w-[720px] lg:min-w-0">
       <p className="mb-3 text-sm font-bold text-slate-500">
-        Klik bar grafik untuk melihat jumlah sesi dibuka, tutup manual, dan auto-close.
+        Klik bar grafik untuk melihat total jadwal, yang aktif, dan yang masih menunggu.
       </p>
       <svg
         role="img"
@@ -649,22 +807,22 @@ function SessionBarChart({ data }: { data: SessionStatistics[] }) {
               {selectedItem.dateRange}
             </text>
             <text fill={purple} fontSize="14" fontWeight="800" x="14" y="64">
-              Dibuka: {selectedItem.opened}
+              Total: {selectedItem.opened}
             </text>
             <text fill={green} fontSize="14" fontWeight="800" x="14" y="88">
-              Tutup manual: {selectedItem.closed}
+              Aktif: {selectedItem.closed}
             </text>
             <text fill={yellow} fontSize="14" fontWeight="800" x="14" y="112">
-              Auto-close: {selectedItem.autoClosed}
+              Menunggu: {selectedItem.autoClosed}
             </text>
           </g>
         ) : null}
       </svg>
       <ChartLegend
         items={[
-          { label: 'Sesi dibuka', color: purple },
-          { label: 'Tutup manual', color: green },
-          { label: 'Auto-close', color: yellow },
+          { label: 'Total jadwal', color: purple },
+          { label: 'Aktif', color: green },
+          { label: 'Menunggu', color: yellow },
         ]}
       />
     </div>
@@ -708,7 +866,7 @@ function LineChart({
       : points[Math.min(selectedIndex, points.length - 1)]
 
   return (
-    <div className="min-w-[900px]">
+    <div className="min-w-[720px] lg:min-w-0">
       <p className="mb-3 text-sm font-bold text-slate-500">
         Klik titik grafik untuk melihat detail {label.toLowerCase()}.
       </p>
@@ -841,7 +999,7 @@ function ChartLegend({ items }: { items: Array<{ label: string; color: string }>
         >
           <span
             aria-hidden="true"
-            className="h-3 w-3 rounded-[2px]"
+            className="h-3 w-3 rounded-xs"
             style={{ background: item.color }}
           />
           {item.label}
@@ -870,9 +1028,33 @@ function DetailTable({
         : 'text-[#7d2228]'
 
   return (
-    <section className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/8 sm:p-7">
-      <h2 className="text-2xl font-black text-slate-950">{title}</h2>
-      <div className="mt-5 overflow-x-auto">
+    <section className="rounded-lg border border-white bg-white p-4 shadow-lg shadow-slate-900/8 sm:p-7">
+      <h2 className="text-xl font-black text-slate-950 sm:text-2xl">{title}</h2>
+      <div className="mt-4 grid gap-3 md:hidden">
+        {rows.map((row) => (
+          <article
+            key={row.join('-')}
+            className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+          >
+            <p className={`text-base font-black ${accent}`}>
+              {row[row.length - 1]}
+            </p>
+            <div className="mt-3 space-y-2">
+              {row.map((cell, index) => (
+                <div key={`${cell}-${index}`} className="flex items-start justify-between gap-4">
+                  <span className="text-xs font-black uppercase text-slate-400">
+                    {columns[index]}
+                  </span>
+                  <span className="max-w-[62%] text-right text-sm font-bold text-slate-800">
+                    {cell}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+      <div className="mt-5 hidden overflow-x-auto md:block">
         <table className="w-full min-w-[680px] border-collapse text-left">
           <thead>
             <tr className="bg-slate-50">
@@ -919,11 +1101,7 @@ const getStatisticsConfig = (
     return {
       title: 'Statistik Terlambat',
       kind: 'late',
-      summary: [
-        { label: 'Total Terlambat', value: '4', tone: 'yellow' },
-        { label: 'Rata-rata Keterlambatan', value: '12 mnt' },
-        { label: 'Terlambat Terakhir', value: '17 Mei' },
-      ],
+      summary: [],
     }
   }
 
@@ -931,12 +1109,7 @@ const getStatisticsConfig = (
     return {
       title: 'Statistik Tiket Koreksi',
       kind: 'ticket',
-      summary: [
-        { label: 'Total Tiket', value: '3' },
-        { label: 'Disetujui', value: '1', tone: 'green' },
-        { label: 'Menunggu', value: '1', tone: 'yellow' },
-        { label: 'Ditolak', value: '1', tone: 'red' },
-      ],
+      summary: [],
     }
   }
 
@@ -944,12 +1117,7 @@ const getStatisticsConfig = (
     return {
       title: 'Statistik Kehadiran Kelas',
       kind: 'attendance',
-      summary: [
-        { label: 'Total Mahasiswa', value: '38' },
-        { label: 'Hadir', value: '35', tone: 'green' },
-        { label: 'Terlambat', value: '2', tone: 'yellow' },
-        { label: 'Tidak Hadir', value: '1', tone: 'red' },
-      ],
+      summary: [],
     }
   }
 
@@ -957,23 +1125,386 @@ const getStatisticsConfig = (
     return {
       title: 'Statistik Sesi Presensi',
       kind: 'session',
-      summary: [
-        { label: 'Total Sesi', value: '3' },
-        { label: 'Sesi Aktif', value: '1', tone: 'green' },
-        { label: 'Rata-rata Scan', value: '26' },
-        { label: 'Butuh Review', value: '2', tone: 'yellow' },
-      ],
+      summary: [],
     }
   }
 
   return {
     title: 'Statistik Kehadiran',
     kind: 'attendance',
-    summary: [
-      { label: 'Total Pertemuan', value: '40' },
-      { label: 'Hadir', value: '35', tone: 'green' },
-      { label: 'Terlambat', value: '4', tone: 'yellow' },
-      { label: 'Alpha', value: '1', tone: 'red' },
-    ],
+    summary: [],
   }
+}
+
+function buildAttendanceStatistics(
+  records: ScanRecord[],
+  studentId?: string,
+): {
+  summary: SummaryItem[]
+  weeklyAttendance: WeeklyAttendance[]
+  monthlyAttendance: LinePoint[]
+} {
+  const scopedRecords = studentId
+    ? records.filter((record) => record.studentId === studentId)
+    : records
+
+  if (!scopedRecords.length) {
+    return {
+      summary: [] as SummaryItem[],
+      weeklyAttendance: [] as WeeklyAttendance[],
+      monthlyAttendance: [] as LinePoint[],
+    }
+  }
+
+  const sorted = [...scopedRecords].sort(
+    (left, right) => new Date(left.scannedAt).getTime() - new Date(right.scannedAt).getTime(),
+  )
+  const presentCount = sorted.filter(
+    (record) => record.status === 'Terverifikasi' || record.status === 'Terlambat',
+  ).length
+  const lateCount = sorted.filter((record) => record.status === 'Terlambat').length
+  const absentCount = sorted.filter((record) => record.status === 'Tidak Hadir').length
+
+  return {
+    summary: [
+      summaryItem('Total Pertemuan', `${sorted.length}`),
+      summaryItem('Hadir', `${presentCount}`, 'green'),
+      summaryItem('Terlambat', `${lateCount}`, 'yellow'),
+      summaryItem('Alpha', `${absentCount}`, 'red'),
+    ],
+    weeklyAttendance: buildWeeklyAttendance(sorted),
+    monthlyAttendance: buildMonthlyAttendance(sorted),
+  }
+}
+
+function buildLateStatistics(
+  records: ScanRecord[],
+  studentId?: string,
+): {
+  summary: SummaryItem[]
+  weeklyLate: LinePoint[]
+  detailRows: string[][]
+} {
+  const scopedRecords = studentId
+    ? records.filter((record) => record.studentId === studentId)
+    : records
+
+  const lateRecords = scopedRecords.filter(
+    (record) => record.status === 'Terlambat',
+  )
+
+  if (!lateRecords.length) {
+    return {
+      summary: [] as SummaryItem[],
+      weeklyLate: [] as LinePoint[],
+      detailRows: [] as string[][],
+    }
+  }
+
+  const sorted = [...lateRecords].sort(
+    (left, right) => new Date(left.scannedAt).getTime() - new Date(right.scannedAt).getTime(),
+  )
+
+  return {
+    summary: [
+      summaryItem('Total Terlambat', `${sorted.length}`, 'yellow'),
+      {
+        label: 'Rata-rata Keterlambatan',
+        value: `${Math.round((sorted.length / Math.max(1, records.length)) * 100)}%`,
+      },
+      {
+        label: 'Terlambat Terakhir',
+        value: new Date(sorted[sorted.length - 1].scannedAt).toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'short',
+        }),
+      },
+    ],
+    weeklyLate: buildLateTrend(sorted),
+    detailRows: sorted.map((record) => {
+      const scannedAt = new Date(record.scannedAt)
+      return [
+        scannedAt.toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        }),
+        record.courseTitle,
+        scannedAt.toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        'Terlambat',
+      ]
+    }),
+  }
+}
+
+function buildLateTrend(records: ScanRecord[]): LinePoint[] {
+  if (!records.length) return []
+
+  const buckets = new Map<string, { start: number; value: number }>()
+  for (const record of records) {
+    const scannedAt = new Date(record.scannedAt)
+    const weekStart = getWeekStart(scannedAt)
+    const key = weekStart.toISOString().slice(0, 10)
+    const bucket = buckets.get(key) ?? {
+      start: weekStart.getTime(),
+      value: 0,
+    }
+
+    bucket.value += 1
+    buckets.set(key, bucket)
+  }
+
+  return [...buckets.values()]
+    .sort((left, right) => left.start - right.start)
+    .map((bucket) => {
+      const weekStart = new Date(bucket.start)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekEnd.getDate() + 6)
+
+      return {
+        label: `Minggu ${weekStart.getDate()}`,
+        detail: `${weekStart.getDate()}-${weekEnd.getDate()} ${formatMonthName(weekStart)}`,
+        value: bucket.value,
+      }
+    })
+}
+
+function buildTicketStatistics(tickets: CorrectionTicket[]): {
+  summary: SummaryItem[]
+  trend: LinePoint[]
+  detailRows: string[][]
+} {
+  if (!tickets.length) {
+    return {
+      summary: [] as SummaryItem[],
+      trend: [] as LinePoint[],
+      detailRows: [] as string[][],
+    }
+  }
+
+  const sorted = [...tickets].sort(
+    (left, right) =>
+      new Date(left.date).getTime() - new Date(right.date).getTime(),
+  )
+
+  const approvedCount = sorted.filter((ticket) => ticket.status === 'Disetujui').length
+  const pendingCount = sorted.filter((ticket) => ticket.status === 'Menunggu').length
+  const rejectedCount = sorted.filter((ticket) => ticket.status === 'Ditolak').length
+
+  return {
+    summary: [
+      summaryItem('Total Tiket', `${sorted.length}`),
+      summaryItem('Disetujui', `${approvedCount}`, 'green'),
+      summaryItem('Menunggu', `${pendingCount}`, 'yellow'),
+      summaryItem('Ditolak', `${rejectedCount}`, 'red'),
+    ],
+    trend: buildTicketTrend(sorted),
+    detailRows: sorted.map((ticket) => [
+      new Date(ticket.date).toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
+      ticket.courseTitle,
+      ticket.status,
+    ]),
+  }
+}
+
+function buildTicketTrend(tickets: CorrectionTicket[]): LinePoint[] {
+  if (!tickets.length) return []
+
+  const buckets = new Map<string, { start: number; value: number }>()
+
+  for (const ticket of tickets) {
+    const weekStart = getWeekStart(new Date(ticket.date))
+    const key = weekStart.toISOString().slice(0, 10)
+    const bucket = buckets.get(key) ?? {
+      start: weekStart.getTime(),
+      value: 0,
+    }
+
+    bucket.value += 1
+    buckets.set(key, bucket)
+  }
+
+  return [...buckets.values()]
+    .sort((left, right) => left.start - right.start)
+    .map((bucket) => {
+      const weekStart = new Date(bucket.start)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekEnd.getDate() + 6)
+
+      return {
+        label: `Minggu ${weekStart.getDate()}`,
+        detail: `${weekStart.getDate()}-${weekEnd.getDate()} ${formatMonthName(weekStart)}`,
+        value: bucket.value,
+      }
+    })
+}
+
+function buildSessionStatistics(
+  schedules: CourseSchedule[],
+  attendanceRecords: ScanRecord[],
+): {
+  summary: SummaryItem[]
+  weeklySessions: SessionStatistics[]
+  detailRows: string[][]
+} {
+  if (!schedules.length) {
+    return {
+      summary: [] as SummaryItem[],
+      weeklySessions: [] as SessionStatistics[],
+      detailRows: [] as string[][],
+    }
+  }
+
+  const sorted = [...schedules].sort((left, right) => {
+    const leftValue = (left.day ?? left.title).toLowerCase()
+    const rightValue = (right.day ?? right.title).toLowerCase()
+    return leftValue.localeCompare(rightValue)
+  })
+
+  const activeCount = sorted.filter((schedule) => schedule.status === 'active').length
+  const upcomingCount = sorted.filter((schedule) => schedule.status === 'upcoming').length
+
+  return {
+    summary: [
+      summaryItem('Total Jadwal', `${sorted.length}`),
+      summaryItem('Aktif', `${activeCount}`, 'green'),
+      summaryItem('Menunggu', `${upcomingCount}`, 'yellow'),
+      summaryItem('Presensi Tercatat', `${attendanceRecords.length}`, 'red'),
+    ],
+    weeklySessions: buildSessionTrend(sorted),
+    detailRows: sorted.map((schedule) => [
+      schedule.day ?? '-',
+      schedule.title,
+      schedule.time,
+      schedule.status === 'active' ? 'Aktif' : 'Menunggu',
+    ]),
+  }
+}
+
+function buildSessionTrend(schedules: CourseSchedule[]): SessionStatistics[] {
+  if (!schedules.length) return []
+
+  const buckets = new Map<string, { order: number; opened: number; closed: number; autoClosed: number }>()
+
+  for (const schedule of schedules) {
+    const key = schedule.day ?? schedule.title
+    const bucket = buckets.get(key) ?? {
+      order: buckets.size,
+      opened: 0,
+      closed: 0,
+      autoClosed: 0,
+    }
+
+    bucket.opened += 1
+    if (schedule.status === 'active') bucket.closed += 1
+    else bucket.autoClosed += 1
+    buckets.set(key, bucket)
+  }
+
+  return [...buckets.entries()]
+    .sort((left, right) => left[1].order - right[1].order)
+    .map(([label, bucket]) => ({
+      label,
+      dateRange: 'Data backend',
+      opened: bucket.opened,
+      closed: bucket.closed,
+      autoClosed: bucket.autoClosed,
+    }))
+}
+
+function buildWeeklyAttendance(records: ScanRecord[]): WeeklyAttendance[] {
+  if (!records.length) return []
+
+  const buckets = new Map<string, WeeklyAttendance & { start: number }>()
+
+  for (const record of records) {
+    const scannedAt = new Date(record.scannedAt)
+    const start = getWeekStart(scannedAt)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 6)
+    const key = start.toISOString().slice(0, 10)
+    const existing = buckets.get(key)
+
+    if (!existing) {
+      buckets.set(key, {
+        start: start.getTime(),
+        label: `Minggu ${buckets.size + 1}`,
+        dateRange: `${start.getDate()}-${end.getDate()} ${formatMonthName(start)}`,
+        hadir: 0,
+        terlambat: 0,
+        alpha: 0,
+      })
+    }
+
+    const bucket = buckets.get(key)
+    if (!bucket) continue
+
+    if (record.status === 'Terverifikasi') bucket.hadir += 1
+    else if (record.status === 'Terlambat') bucket.terlambat += 1
+    else bucket.alpha += 1
+  }
+
+  return [...buckets.values()]
+    .sort((left, right) => left.start - right.start)
+    .map(({ start, ...bucket }) => {
+      void start
+      return bucket
+    })
+}
+
+function buildMonthlyAttendance(records: ScanRecord[]): LinePoint[] {
+  if (!records.length) return []
+
+  const buckets = new Map<string, { start: number; total: number; present: number }>()
+
+  for (const record of records) {
+    const scannedAt = new Date(record.scannedAt)
+    const key = `${scannedAt.getFullYear()}-${scannedAt.getMonth()}`
+    const monthStart = new Date(scannedAt.getFullYear(), scannedAt.getMonth(), 1)
+    const bucket = buckets.get(key) ?? {
+      start: monthStart.getTime(),
+      total: 0,
+      present: 0,
+    }
+
+    bucket.total += 1
+    if (record.status === 'Terverifikasi' || record.status === 'Terlambat') {
+      bucket.present += 1
+    }
+
+    buckets.set(key, bucket)
+  }
+
+  return [...buckets.values()]
+    .sort((left, right) => left.start - right.start)
+    .map((bucket) => {
+      const monthDate = new Date(bucket.start)
+      return {
+        label: monthDate.toLocaleDateString('id-ID', { month: 'short' }),
+        detail: monthDate.toLocaleDateString('id-ID', {
+          month: 'long',
+          year: 'numeric',
+        }),
+        value: Math.round((bucket.present / Math.max(1, bucket.total)) * 100),
+      }
+    })
+}
+
+function getWeekStart(date: Date) {
+  const start = new Date(date)
+  const day = start.getDay() || 7
+  start.setDate(start.getDate() - (day - 1))
+  start.setHours(0, 0, 0, 0)
+  return start
+}
+
+function formatMonthName(date: Date) {
+  return date.toLocaleDateString('id-ID', { month: 'short' })
 }

@@ -10,7 +10,7 @@ import { LoginHelpPage } from './LoginHelpPage'
 import { clearSession, loadSession, saveSession } from '../lib/localSession'
 import { getRoleOption } from '../lib/roleOptions'
 import type { LocalSession, Role } from '../types/auth'
-import { isUntarAccount, resolveLocalAccount } from '../utils/accounts'
+import { isUntarAccount } from '../utils/accounts'
 import { loginWithBackend } from '../utils/authApi'
 import { validatePassword } from '../utils/password'
 
@@ -58,20 +58,23 @@ export function LoginPage() {
 
     const backendProfile = await loginWithBackend(trimmedAccount, password)
 
-    if (backendProfile && backendProfile.role !== selectedRole) {
+    if (!backendProfile) {
+      setError('Akun belum ada di backend. Jalankan seed database dulu.')
+      return
+    }
+
+    if (backendProfile.role !== selectedRole) {
       setError(
         `Akun ini terdaftar sebagai ${getRoleOption(backendProfile.role).label}. Pilih role yang sesuai.`,
       )
       return
     }
 
-    const accountProfile =
-      backendProfile ?? resolveLocalAccount(selectedRole, trimmedAccount)
     const nextSession: LocalSession = {
       role: selectedRole,
-      identity: accountProfile.identity,
-      name: accountProfile.name,
-      email: accountProfile.email,
+      identity: backendProfile.identity,
+      name: backendProfile.name,
+      email: backendProfile.email,
       loggedAt: new Date().toISOString(),
     }
 
@@ -121,12 +124,12 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#f7f4ef] text-slate-900">
-      <main className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
+    <div className="min-h-[100svh] overflow-x-hidden bg-[#f7f4ef] text-slate-900">
+      <main className="login-main grid min-h-[100svh] xl:grid-cols-[1.05fr_0.95fr]">
         <BrandPanel />
 
-        <section className="login-side flex items-center justify-center px-5 py-8 sm:px-8 lg:px-12">
-          <div className="login-card w-full max-w-[520px] rounded-[8px] border border-white bg-white/95 p-6 shadow-2xl shadow-[#2f1d45]/12 sm:p-8 lg:p-10">
+        <section className="login-side relative z-10 flex items-start justify-center px-0 pb-0 pt-0 xl:items-center xl:px-12 xl:py-10">
+          <div className="login-card w-full max-w-none rounded-none border-y border-white/80 bg-white/96 p-5 shadow-2xl shadow-[#2f1d45]/12 backdrop-blur sm:p-7 md:p-10 xl:max-w-[520px] xl:rounded-[18px] xl:border xl:p-10">
             <LoginForm
               selectedRole={selectedRole}
               activeRole={activeRole}
