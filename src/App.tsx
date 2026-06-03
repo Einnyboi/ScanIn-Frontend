@@ -18,6 +18,7 @@ import { loadSession, clearSession } from './lib/localSession'
 export default function App() {
   const session = loadSession()
   const role = session?.role?.toLowerCase()
+  const resetToken = new URLSearchParams(window.location.search).get('token') ?? ''
   const isLecturerRole =
     role === 'pengajar' ||
     role === 'lecturer' ||
@@ -95,6 +96,7 @@ export default function App() {
           path="/reset-password"
           element={
             <ResetPasswordPage
+              token={resetToken}
               onBack={() => {
                 window.location.href = '/'
               }}

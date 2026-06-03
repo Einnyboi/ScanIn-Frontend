@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Plus, Search } from 'lucide-react'
+import { apiRequest } from '../../utils/api'
 
 import type { CourseSchedule } from '../../types/attendance'
 import type { AdminUser } from '../../utils/adminUsers'
@@ -9,12 +10,10 @@ import {
   getLecturerOptions,
   splitScheduleTime,
 } from '../../utils/adminDashboard'
-import { loadSchedules } from '../../utils/schedules'
 
 import {
   ActionButtons,
   AdminCard,
-  DataTable,
   DeletePinModal,
   EmptyState,
   Input,
@@ -25,7 +24,7 @@ import {
 } from './shared'
 
 export type ScheduleViewProps = {
-  onSchedulesChange: (schedules: CourseSchedule[]) => void
+  onSchedulesChange: (schedules: CourseSchedule[], sync?: boolean) => void
   schedules: CourseSchedule[]
   users: AdminUser[]
 }
@@ -48,7 +47,7 @@ export function ScheduleView({ onSchedulesChange, schedules, users }: ScheduleVi
     return [schedule.day ?? '', schedule.title, schedule.time, schedule.room, schedule.lecturer, schedule.status, String(schedule.students)].some((value) => value.toLowerCase().includes(lowerQuery))
   })
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     if (!formData.title.trim() || !formData.time.trim() || !formData.room.trim()) {
@@ -56,22 +55,66 @@ export function ScheduleView({ onSchedulesChange, schedules, users }: ScheduleVi
       return
     }
 
-    const schedule = {
+    const normalizedSchedule = {
       ...formData,
-      id: isEditing ? editingId : createScheduleId(formData.title),
+      title: formData.title.trim(),
+      time: formData.time.trim(),
+      room: formData.room.trim(),
       students: Number(formData.students) || 0,
     }
-    const nextSchedules = isEditing
-      ? schedules.map((item) => (item.id === editingId ? schedule : item))
-      : [schedule, ...schedules]
 
-    onSchedulesChange(nextSchedules)
-    setFormData(createEmptySchedule())
-    setEditingId('')
-    setNotice(isEditing ? 'Jadwal berhasil diperbarui dan disinkronkan.' : 'Jadwal berhasil ditambahkan dan tersedia di dashboard.')
-    setPageMode('list')
+    try {
+      if (isEditing) {
+        const response = await apiRequest<Partial<CourseSchedule>>(
+          `/schedules/${editingId}`, 
+          {
+            method: 'PATCH',
+            body: JSON.stringify(normalizedSchedule),
+          }
+        )
+
+        const updatedSchedule: CourseSchedule = {
+          ...normalizedSchedule,
+          ...(response || {}),
+          id: editingId, 
+        }
+
+        const nextSchedules = schedules.map((item) =>
+          item.id === editingId ? updatedSchedule : item
+        )
+        await onSchedulesChange(nextSchedules, false) 
+
+      } else {
+        const { id: _id, ...postPayload } = normalizedSchedule
+
+        const response = await apiRequest<Partial<CourseSchedule>>('/schedules', {
+          method: 'POST',
+          body: JSON.stringify(postPayload),
+        })
+
+        const createdSchedule: CourseSchedule = {
+          ...postPayload,
+          ...(response || {}),
+          id: response?.id || createScheduleId(normalizedSchedule.title),
+        }
+
+        const nextSchedules = [createdSchedule, ...schedules]
+        onSchedulesChange(nextSchedules, false)
+      }
+
+      setFormData(createEmptySchedule())
+      setEditingId('')
+      setNotice(
+        isEditing
+          ? 'Jadwal berhasil diperbarui.'
+          : 'Jadwal baru berhasil ditambahkan.'
+      )
+      setPageMode('list')
+
+    } catch {
+      setNotice('Gagal menyimpan jadwal ke backend. Data belum diubah.')
+    }
   }
-
   const handleCreate = () => {
     setFormData(createEmptySchedule())
     setEditingId('')
@@ -91,14 +134,19 @@ export function ScheduleView({ onSchedulesChange, schedules, users }: ScheduleVi
       title: 'Konfirmasi Hapus Jadwal',
       description: `Jadwal ${schedule.title} (${schedule.time}, ${schedule.room}) akan dihapus dari mahasiswa dan pengajar. Masukkan PIN admin 4 angka untuk melanjutkan.`,
       confirmLabel: 'Hapus Jadwal',
-      onConfirm: () => {
-        onSchedulesChange(schedules.filter((item) => item.id !== schedule.id))
-        if (editingId === schedule.id) {
-          setFormData(createEmptySchedule())
-          setEditingId('')
-          setPageMode('list')
+      onConfirm: async () => {
+        try {
+          await apiRequest(`/schedules/${schedule.id}`, { method: 'DELETE' })
+          onSchedulesChange(schedules.filter((item) => item.id !== schedule.id), false)
+          if (editingId === schedule.id) {
+            setFormData(createEmptySchedule())
+            setEditingId('')
+            setPageMode('list')
+          }
+          setNotice('Jadwal berhasil dihapus setelah verifikasi PIN.')
+        } catch {
+          setNotice('Gagal menghapus jadwal dari backend.')
         }
-        setNotice('Jadwal berhasil dihapus setelah verifikasi PIN.')
       },
     })
   }
@@ -191,8 +239,8 @@ export function ScheduleView({ onSchedulesChange, schedules, users }: ScheduleVi
         </div>
         {notice ? <p className="mt-4 rounded-[8px] bg-[#5c3386]/8 px-4 py-3 text-sm font-bold text-[#5c3386]">{notice}</p> : null}
         <div className="mt-5 grid gap-4">
-          {filteredSchedules.map((schedule) => (
-            <article key={schedule.id} className="rounded-[8px] border border-slate-200 p-4">
+          {filteredSchedules.map((schedule, index) => (
+            <article key={schedule.id || `fallback-${index}`} className="rounded-[8px] border border-slate-200 p-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-lg font-black text-slate-950">{schedule.title}</p>

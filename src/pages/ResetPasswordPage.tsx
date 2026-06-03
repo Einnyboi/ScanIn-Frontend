@@ -8,6 +8,7 @@ type ResetPasswordPageProps = {
 }
 
 export function ResetPasswordPage({ token, onBack }: ResetPasswordPageProps) {
+  const [otp, setOtp] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
@@ -16,6 +17,11 @@ export function ResetPasswordPage({ token, onBack }: ResetPasswordPageProps) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (!otp.trim()) {
+      setError('Kode OTP wajib diisi.')
+      return
+    }
 
     if (password !== confirmPassword) {
       setError('Konfirmasi password tidak cocok.')
@@ -31,7 +37,7 @@ export function ResetPasswordPage({ token, onBack }: ResetPasswordPageProps) {
 
     setIsLoading(true)
     try {
-      await completePasswordReset(token, password)
+      await completePasswordReset(token, otp, password)
       setSuccess(true)
       setError('')
     } catch {
@@ -69,6 +75,15 @@ export function ResetPasswordPage({ token, onBack }: ResetPasswordPageProps) {
             </div>
           ) : (
             <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
+              <label className="block">
+                <span className="text-sm font-black text-slate-700">Kode OTP (dari Email)</span>
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => { setOtp(e.target.value); setError('') }}
+                  className="mt-2 h-14 w-full rounded-[8px] border border-slate-200 px-4 font-semibold outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+                />
+              </label>
               <label className="block">
                 <span className="text-sm font-black text-slate-700">Password Baru</span>
                 <input

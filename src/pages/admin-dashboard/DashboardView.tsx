@@ -4,7 +4,7 @@ import { Radio, Ticket as TicketIcon, TrendingUp, Users } from 'lucide-react'
 import type { CorrectionTicket, CourseSchedule } from '../../types/attendance'
 import type { AdminUser } from '../../utils/adminUsers'
 import type { PasswordResetRequest } from '../../utils/passwordReset'
-import { buildAdminAnalytics, type AdminAnalytics } from '../../utils/adminDashboard'
+import type { AdminAnalytics } from '../../utils/adminDashboard'
 
 import { AdminCard, AdminStatCard, ActivityTile, EmptyState, PasswordResetItem, purple } from './shared'
 
@@ -30,7 +30,7 @@ export function DashboardView({
   const studentCount = users.filter((user) => user.role === 'Mahasiswa').length
   const activeSessions = schedules.filter((schedule) => schedule.status === 'active')
   const pendingTickets = tickets.filter((ticket) => ticket.status === 'Menunggu')
-  const pendingResets = passwordRequests.filter((request) => request.status !== 'SENT' && request.status !== 'USED')
+  const pendingResets = passwordRequests.filter((request) => request.emailStatus !== 'SENT')
 
   return (
     <div className="space-y-6">
