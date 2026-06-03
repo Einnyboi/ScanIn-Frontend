@@ -1,5 +1,6 @@
 export const apiBaseUrl =
   import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
+  // import.meta.env.VITE_API_URL ?? 'http://192.168.1.11:3000/api'
 
 export class ApiRequestError extends Error {
   public readonly status: number
