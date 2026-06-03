@@ -163,8 +163,14 @@ export function LecturerSessionPage({
           if (parsed.type === 'SCANIN_ATTENDANCE') {
             payload = parsed as QrPayload
             saveActiveQrPayload(payload)
+          } else {
+            setCameraMessage('QR terbaca, tapi format tidak dikenali.')
+            return
           }
-        } catch {}
+        } catch {
+          setCameraMessage('QR terbaca (bukan JSON): ' + decodedText.slice(0, 30))
+          return
+        }
       } else {
         payload = loadActiveQrPayload()
       }
@@ -213,7 +219,7 @@ export function LecturerSessionPage({
       html5QrCodeRef.current = html5QrCode
       await html5QrCode.start(
         { facingMode: 'environment' },
-        { fps: 5, qrbox: { width: 250, height: 250 } },
+        { fps: 10 },
         (decodedText) => {
           void attemptCameraScan(decodedText)
         },
@@ -221,9 +227,9 @@ export function LecturerSessionPage({
       )
       setIsScannerActive(true)
       setCameraMessage('Kamera aktif. Scanner akan membaca QR secara otomatis.')
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      setCameraMessage('Izin kamera ditolak atau kamera tidak tersedia.')
+      setCameraMessage('Gagal menyalakan kamera: ' + (err?.message || 'Izin ditolak.'))
     }
   }
 
