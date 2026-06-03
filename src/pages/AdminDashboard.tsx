@@ -1,13 +1,7 @@
 import {
   CalendarDays,
-  ClipboardList,
-  FileText,
   Clock,
   Bell,
-  LayoutDashboard,
-  Ticket as TicketIcon,
-  Users,
-  type LucideIcon
 } from 'lucide-react'
 import {
   useEffect,
@@ -89,13 +83,6 @@ type AdminView =
   | 'reports'
   | 'tickets'
   | 'notifications'
-
-type DeleteConfirmation = {
-  title: string
-  description: string
-  confirmLabel: string
-  onConfirm: () => void | Promise<void>
-}
 
 type AdminNotice = {
   message: string
@@ -305,9 +292,11 @@ export default function AdminDashboard({
     }
   }
 
-  const handleSchedulesChange = (nextSchedules: CourseSchedule[]) => {
+  const handleSchedulesChange = (nextSchedules: CourseSchedule[], sync = true) => {
     setSchedules(nextSchedules)
-    saveSchedules(nextSchedules)
+    if (sync) {
+      saveSchedules(nextSchedules)
+    }
   }
 
   const handleTicketAction = async (
@@ -365,14 +354,14 @@ export default function AdminDashboard({
 
     if (request.emailStatus === 'SMTP_NOT_CONFIGURED') {
       const smtpStatus = await fetchPasswordResetSmtpStatus().catch(() => null)
-      const missingConfig = smtpStatus?.missing?.length
+      const missingConfig = smtpStatus?.missing?.length 
         ? ` Lengkapi ${smtpStatus.missing.join(', ')} di file .env backend, lalu restart backend.`
         : ''
 
       setAdminNotice({
         tone: 'warning',
         message:
-          request.resetUrl ? `SMTP belum aktif. Namun link reset berhasil dibuat: ${request.resetUrl} (Silakan copy dan bagikan manual ke pengguna)` : 'Permintaan tercatat, tapi SMTP backend belum dikonfigurasi jadi email asli belum terkirim.',
+          request.resetUrl ? `SMTP belum aktif. Namun link reset berhasil dibuat: ${request.resetUrl}.${missingConfig}` : `Permintaan tercatat, tapi SMTP backend belum dikonfigurasi jadi email asli belum terkirim.${missingConfig}`,
       })
       return
     }
@@ -505,4 +494,3 @@ export default function AdminDashboard({
     </div>
   )
 }
-

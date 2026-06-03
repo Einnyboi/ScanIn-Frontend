@@ -1,6 +1,6 @@
 import type { CorrectionTicket } from '../../types/attendance'
 
-import { AdminCard, EmptyState, SimpleStat, StatusBadge } from './shared'
+import { EmptyState, SimpleStat, StatusBadge } from './shared'
 
 export type TicketsViewProps = {
   onTicketAction: (ticketId: string, status: CorrectionTicket['status']) => void

@@ -20,13 +20,19 @@ export async function apiRequest<TResponse>(
   path: string,
   options?: RequestInit,
 ): Promise<TResponse> {
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('scanin_token') : null
+  const isFormData =
+    typeof FormData !== 'undefined' && options?.body instanceof FormData
+
   const response = await fetch(`${apiBaseUrl}${path}`, {
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
     ...options,
-  })
+  }) 
 
   if (!response.ok) {
     let details: unknown = null
