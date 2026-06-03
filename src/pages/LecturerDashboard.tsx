@@ -8,7 +8,6 @@ import {
 } from './StatisticsPage'
 import { LecturerSessionPage } from './LecturerSessionPage'
 import type {
-  CorrectionTicket,
   CourseSchedule,
   ScanRecord,
 } from '../types/attendance'
@@ -20,7 +19,6 @@ import {
 } from '../utils/attendanceStorage'
 import {
   saveAttendanceNotification,
-  saveTicketNotification,
 } from '../utils/notifications'
 import { isQrExpired, loadActiveQrPayload } from '../utils/qr'
 import {
@@ -33,11 +31,6 @@ import {
   fetchSchedulesFromBackend,
   scheduleChangedEvent,
 } from '../utils/schedules'
-import {
-  fetchTicketsFromBackend,
-  updateStoredTicket,
-  ticketsChangedEvent,
-} from '../utils/tickets'
 
 type LecturerDashboardProps = {
   session: LocalSession
@@ -47,7 +40,7 @@ type LecturerDashboardProps = {
 type LecturerMetric =
   | Extract<
       StatisticsMode,
-      'lecturer-present' | 'lecturer-session' | 'lecturer-ticket'
+      'lecturer-present' | 'lecturer-session'
     >
   | null
 
@@ -64,7 +57,6 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
   const [schedules, setSchedules] = useState<CourseSchedule[]>([])
   const [sessionCourse, setSessionCourse] = useState<CourseSchedule | null>(null)
   const [scanRecords, setScanRecords] = useState<ScanRecord[]>([])
-  const [tickets, setTickets] = useState<CorrectionTicket[]>([])
   const [scannerMessage, setScannerMessage] = useState(
     'Buka sesi kelas untuk menampilkan halaman scanner QR.',
   )
@@ -104,26 +96,6 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
       window.removeEventListener(scheduleChangedEvent, reload)
     }
   }, [])
-
-  useEffect(() => {
-    const reload = () => {
-      void fetchTicketsFromBackend([]).then((backendTickets) => {
-        setTickets(backendTickets ?? [])
-      })
-    }
-    reload()
-    window.addEventListener('storage', reload)
-    window.addEventListener(ticketsChangedEvent, reload)
-    return () => {
-      window.removeEventListener('storage', reload)
-      window.removeEventListener(ticketsChangedEvent, reload)
-    }
-  }, [])
-
-  const approvedTickets = tickets.filter((ticket) => ticket.status === 'Disetujui')
-    .length
-  const pendingTickets = tickets.filter((ticket) => ticket.status === 'Menunggu')
-  const pendingTicketCount = pendingTickets.length
 
   const activeStudents = useMemo(
     () =>
@@ -287,38 +259,6 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     setSessionCourse(null)
   }
 
-  const updateTicket = async (
-    ticketId: string,
-    status: CorrectionTicket['status'],
-  ) => {
-    const selectedTicket = tickets.find((ticket) => ticket.id === ticketId)
-    const updatedTicket = selectedTicket ? { ...selectedTicket, status } : null
-
-    setTickets((currentTickets) =>
-      currentTickets.map((ticket) =>
-        ticket.id === ticketId ? { ...ticket, status } : ticket,
-      ),
-    )
-
-    if (updatedTicket) {
-      try {
-        const savedTicket = await updateStoredTicket(updatedTicket)
-        setTickets((currentTickets) =>
-          currentTickets.map((ticket) =>
-            ticket.id === savedTicket.id ? savedTicket : ticket,
-          ),
-        )
-      } catch {
-        setScannerMessage('Gagal memperbarui tiket ke backend. Coba lagi.')
-        return
-      }
-    }
-
-    if (updatedTicket && (status === 'Disetujui' || status === 'Ditolak')) {
-      saveTicketNotification(updatedTicket, status)
-    }
-  }
-
   if (activeMetric) {
     return (
       <StatisticsPage
@@ -344,14 +284,11 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
 
   return (
     <DashboardShell
-      notificationCount={pendingTicketCount}
-      notificationHref="/lecturer/notifications"
-      notificationLabel="Tiket Baru"
       onLogout={onLogout}
       session={session}
     >
       <div className="space-y-6">
-        <section className="grid grid-cols-3 gap-2 sm:gap-4">
+        <section className="grid grid-cols-2 gap-2 sm:gap-4">
           <StatCard
             label="Mahasiswa Hadir"
             value={`${activeStudents}`}
@@ -364,13 +301,6 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
             value={sessionCourse ? '1' : '0'}
             icon={<CalendarIcon />}
             onClick={() => setActiveMetric('lecturer-session')}
-          />
-          <StatCard
-            label="Tiket Disetujui"
-            value={`${approvedTickets}`}
-            tone="red"
-            icon={<TicketIcon />}
-            onClick={() => setActiveMetric('lecturer-ticket')}
           />
         </section>
 
@@ -463,7 +393,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
           </div>
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <section className="grid gap-6">
           <div className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
             <h2 className="text-2xl font-black text-slate-950">
               Hasil Scan Terbaru
@@ -494,60 +424,6 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
               ) : (
                 <p className="rounded-[8px] bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
                   Belum ada hasil scan.
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div
-            id="lecturer-ticket-panel"
-            tabIndex={-1}
-            className="rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/6 outline-none focus:ring-4 focus:ring-[#5c3386]/12"
-          >
-            <h2 className="text-2xl font-black text-slate-950">
-              Permohonan Koreksi Kehadiran
-            </h2>
-            <div className="mt-5 space-y-3">
-              {pendingTickets.length ? (
-                pendingTickets.map((ticket) => (
-                  <article
-                    key={ticket.id}
-                    className="rounded-[8px] border border-slate-200 p-4"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="font-black text-slate-950">
-                          {ticket.studentName}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-500">
-                          NIM: {ticket.studentId} - {ticket.courseTitle}
-                        </p>
-                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          {ticket.reason}
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => void updateTicket(ticket.id, 'Disetujui')}
-                          className="h-10 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
-                        >
-                          Setujui
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void updateTicket(ticket.id, 'Ditolak')}
-                          className="h-10 rounded-[8px] border border-[#7d2228] px-4 text-sm font-black text-[#7d2228] transition hover:bg-[#7d2228] hover:text-white"
-                        >
-                          Tolak
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <p className="rounded-[8px] bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
-                  Tidak ada permohonan baru.
                 </p>
               )}
             </div>
@@ -627,20 +503,6 @@ function CalendarIcon() {
         fill="none"
         stroke="currentColor"
         strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-    </svg>
-  )
-}
-
-function TicketIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6">
-      <path
-        d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6V7Z"
-        fill="none"
-        stroke="currentColor"
         strokeLinejoin="round"
         strokeWidth="2"
       />

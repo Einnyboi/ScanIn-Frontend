@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Html5Qrcode } from 'html5-qrcode'
 
 import type { CourseSchedule, QrPayload, ScanRecord } from '../types/attendance'
 import {
@@ -38,20 +39,7 @@ type LocalScanResult = {
   studentId?: string
 }
 
-type BarcodeDetectorResult = {
-  rawValue: string
-}
-
-type BarcodeDetectorInstance = {
-  detect: (source: CanvasImageSource) => Promise<BarcodeDetectorResult[]>
-}
-
-type BarcodeDetectorConstructor = new (options?: {
-  formats?: string[]
-}) => BarcodeDetectorInstance
-
 type BrowserWindow = typeof window & {
-  BarcodeDetector?: BarcodeDetectorConstructor
   webkitAudioContext?: typeof AudioContext
 }
 
@@ -79,10 +67,10 @@ export function LecturerSessionPage({
 }: LecturerSessionPageProps) {
   const [now, setNow] = useState(() => new Date())
   const [mode, setMode] = useState<'qr' | 'manual'>('qr')
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+  const [isScannerActive, setIsScannerActive] = useState(false)
   const [cameraMessage, setCameraMessage] = useState('')
   const [scanToast, setScanToast] = useState<LocalScanResult | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
   const lastScannedTokenRef = useRef('')
   const secondsLeft = getAutoCloseSecondsLeft(course, now)
   const autoCloseAt = getSessionAutoCloseAt(course, now)
@@ -99,17 +87,12 @@ export function LecturerSessionPage({
   }, [onCloseSession, secondsLeft])
 
   useEffect(() => {
-    if (videoRef.current && cameraStream) {
-      videoRef.current.srcObject = cameraStream
+    return () => {
+      if (html5QrCodeRef.current?.isScanning) {
+        html5QrCodeRef.current.stop().catch(console.error)
+      }
     }
-  }, [cameraStream])
-
-  useEffect(
-    () => () => {
-      cameraStream?.getTracks().forEach((track) => track.stop())
-    },
-    [cameraStream],
-  )
+  }, [])
 
   const latestRecordByStudent = useMemo(() => {
     const latestRecords = new Map<string, ScanRecord>()
@@ -157,46 +140,7 @@ export function LecturerSessionPage({
     oscillator.stop(audioContext.currentTime + 0.18)
   }, [])
 
-  const readPayloadFromCamera = useCallback(async () => {
-    const browserWindow = window as BrowserWindow
-    const video = videoRef.current
-
-    if (!video || !browserWindow.BarcodeDetector) {
-      return null
-    }
-
-    try {
-      const detector = new browserWindow.BarcodeDetector({
-        formats: ['qr_code'],
-      })
-      const [result] = await detector.detect(video)
-
-      if (!result?.rawValue) {
-        return null
-      }
-
-      const parsedPayload = JSON.parse(result.rawValue) as Partial<QrPayload> & {
-        type?: string
-      }
-
-      if (
-        parsedPayload.type === 'SCANIN_ATTENDANCE' &&
-        parsedPayload.token &&
-        parsedPayload.courseId &&
-        parsedPayload.studentId &&
-        parsedPayload.studentName &&
-        parsedPayload.expiresAt
-      ) {
-        const payload = parsedPayload as QrPayload
-        saveActiveQrPayload(payload)
-        return payload
-      }
-    } catch {
-      return null
-    }
-
-    return null
-  }, [])
+  // Removed readPayloadFromCamera
 
   const commitScanResult = useCallback(
     (result: LocalScanResult) => {
@@ -211,8 +155,19 @@ export function LecturerSessionPage({
   )
 
   const attemptCameraScan = useCallback(
-    async (forceMessage = false) => {
-      const payload = (await readPayloadFromCamera()) ?? loadActiveQrPayload()
+    async (decodedText?: string, forceMessage = false) => {
+      let payload: QrPayload | null = null;
+      if (decodedText) {
+        try {
+          const parsed = JSON.parse(decodedText)
+          if (parsed.type === 'SCANIN_ATTENDANCE') {
+            payload = parsed as QrPayload
+            saveActiveQrPayload(payload)
+          }
+        } catch {}
+      } else {
+        payload = loadActiveQrPayload()
+      }
 
       if (!payload) {
         if (forceMessage) {
@@ -245,47 +200,35 @@ export function LecturerSessionPage({
       lastScannedTokenRef.current = payload.token
       commitScanResult(onLocalScan())
     },
-    [commitScanResult, course.id, onLocalScan, readPayloadFromCamera],
+    [commitScanResult, course.id, onLocalScan],
   )
 
-  useEffect(() => {
-    if (!cameraStream || mode !== 'qr') {
-      return
-    }
-
-    const initialScan = window.setTimeout(() => {
-      void attemptCameraScan(true)
-    }, 150)
-    const timer = window.setInterval(() => {
-      void attemptCameraScan()
-    }, 1_000)
-
-    return () => {
-      window.clearTimeout(initialScan)
-      window.clearInterval(timer)
-    }
-  }, [attemptCameraScan, cameraStream, mode])
+  // Interval scan no longer needed as Html5Qrcode calls us directly
 
   const handleStartCamera = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraMessage('Browser belum mendukung akses kamera.')
-      return
-    }
+    if (html5QrCodeRef.current?.isScanning) return;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false,
-      })
-      setCameraStream(stream)
+      const html5QrCode = new Html5Qrcode("qr-reader")
+      html5QrCodeRef.current = html5QrCode
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        { fps: 5, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          void attemptCameraScan(decodedText)
+        },
+        undefined
+      )
+      setIsScannerActive(true)
       setCameraMessage('Kamera aktif. Scanner akan membaca QR secara otomatis.')
-    } catch {
+    } catch (err) {
+      console.error(err)
       setCameraMessage('Izin kamera ditolak atau kamera tidak tersedia.')
     }
   }
 
   const handleCameraScan = () => {
-    void attemptCameraScan(true)
+    void attemptCameraScan(undefined, true)
   }
 
   if (mode === 'manual') {
@@ -493,16 +436,9 @@ export function LecturerSessionPage({
 
           <div className="mx-auto mt-7 max-w-md rounded-[8px] bg-slate-100 p-4">
             <div className="scanner-frame relative aspect-square overflow-hidden rounded-[8px] bg-slate-950 text-white shadow-inner">
-              {cameraStream ? (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center px-8 text-center">
+              <div id="qr-reader" className="absolute inset-0 h-full w-full object-cover [&>video]:object-cover" />
+              {!isScannerActive ? (
+                <div className="absolute inset-0 z-10 flex h-full items-center justify-center bg-slate-950 px-8 text-center">
                   <div>
                     <div className="mx-auto grid h-40 w-40 grid-cols-2 gap-7">
                       <ScanCorner />
@@ -515,8 +451,8 @@ export function LecturerSessionPage({
                     </p>
                   </div>
                 </div>
-              )}
-              <div className="pointer-events-none absolute inset-8 rounded-[8px] border-2 border-white/70" />
+              ) : null}
+              <div className="pointer-events-none absolute inset-8 z-20 rounded-[8px] border-2 border-white/70" />
             </div>
           </div>
 
