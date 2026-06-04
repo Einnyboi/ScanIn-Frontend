@@ -37,18 +37,25 @@ export const loadCorrectionTickets = (defaultTickets: CorrectionTicket[]) => {
   ]
 }
 
-export const saveCorrectionTicket = (ticket: CorrectionTicket) => {
-  return apiRequest<CorrectionTicket>('/tickets', {
+export const saveCorrectionTicket = async (ticket: CorrectionTicket) => {
+  const storedTickets = loadStoredTickets()
+  persistTickets([
+    ticket,
+    ...storedTickets.filter((item) => item.id !== ticket.id),
+  ])
+
+  const createdTicket = await apiRequest<CorrectionTicket>('/tickets', {
     method: 'POST',
     body: JSON.stringify(ticket),
-  }).then((createdTicket) => {
-    const storedTickets = loadStoredTickets()
-    persistTickets([
-      createdTicket,
-      ...storedTickets.filter((item) => item.id !== createdTicket.id),
-    ])
-    return createdTicket
   })
+  const latestStoredTickets = loadStoredTickets()
+  persistTickets([
+    createdTicket,
+    ...latestStoredTickets.filter(
+      (item) => item.id !== createdTicket.id && item.id !== ticket.id,
+    ),
+  ])
+  return createdTicket
 }
 
 export const updateStoredTicket = (updatedTicket: CorrectionTicket) => {

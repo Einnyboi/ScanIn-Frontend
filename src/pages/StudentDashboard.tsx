@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { ChevronRight, FilePlus2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 import { DashboardShell } from '../components/dashboard/DashboardShell'
 import { QrCodeCard } from '../components/dashboard/QrCodeCard'
@@ -54,6 +55,7 @@ type StudentMetric =
   | null
 
 export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
+  const navigate = useNavigate()
   const [now, setNow] = useState(() => new Date())
   const [schedules, setSchedules] = useState<CourseSchedule[]>(() =>
     loadSchedules(),
@@ -220,6 +222,14 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
     setIsQrVisible(true)
   }
 
+  const handleOpenTicketPage = () => {
+    navigate(
+      `/student/tickets/new${
+        selectedCourse ? `?courseId=${selectedCourse.id}` : ''
+      }`,
+    )
+  }
+
   if (activeMetric) {
     return (
       <StatisticsPage
@@ -280,6 +290,31 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
           />
         </section>
 
+        <section className="sm:hidden">
+          <button
+            type="button"
+            onClick={handleOpenTicketPage}
+            className="admin-surface flex w-full items-center gap-3 rounded-lg border border-[#5c3386]/15 bg-white p-4 text-left shadow-lg shadow-slate-900/6 transition active:scale-[0.99]"
+            aria-label="Buka halaman pengajuan tiket koreksi presensi"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#5c3386] text-white shadow-lg shadow-[#5c3386]/20">
+              <FilePlus2 className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-black text-slate-950">
+                Ajukan Tiket Presensi
+              </span>
+              <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500">
+                Laporkan QR atau data kehadiran yang bermasalah
+              </span>
+            </span>
+            <ChevronRight
+              className="h-5 w-5 shrink-0 text-[#5c3386]"
+              aria-hidden="true"
+            />
+          </button>
+        </section>
+
         <section className="grid gap-6 xl:grid-cols-[1fr_420px]">
           <div className="rounded-lg border border-white bg-white p-5 shadow-lg shadow-slate-900/6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -291,14 +326,14 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
                   Pilih kelas untuk presensi
                 </h2>
               </div>
-              <Link
-                to={`/student/tickets/new${
-                  selectedCourse ? `?courseId=${selectedCourse.id}` : ''
-                }`}
-                className="flex h-11 w-full items-center justify-center rounded-lg border border-[#5c3386] bg-white px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white sm:w-auto"
+              <button
+                type="button"
+                onClick={handleOpenTicketPage}
+                className="hidden h-11 items-center justify-center gap-2 rounded-lg border border-[#5c3386] bg-white px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white sm:flex"
               >
+                <FilePlus2 className="h-4 w-4" aria-hidden="true" />
                 Ajukan Tiket
-              </Link>
+              </button>
             </div>
 
             <div className="mt-5 space-y-3">
