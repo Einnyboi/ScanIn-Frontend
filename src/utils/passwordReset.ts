@@ -20,14 +20,6 @@ export type PasswordResetRequest = {
   emailError?: string
 }
 
-export type PasswordResetSmtpStatus = {
-  status: 'READY' | 'NOT_CONFIGURED'
-  host: string | null
-  port: number | null
-  from: string | null
-  missing?: string[]
-}
-
 export const passwordResetChangedEvent = 'scanin-password-resets-changed'
 
 const passwordResetKey = 'scanin-password-reset-requests'
@@ -119,6 +111,10 @@ export const fetchPasswordResetRequestsFromBackend = async () => {
   }
 }
 
+export const fetchPasswordResetSmtpStatus = async () => {
+  return apiRequest<{ status: string; missing: string[] }>('/password-resets/smtp-status')
+}
+
 export const markPasswordResetAsSent = async (id: string) => {
   const sentAt = new Date().toISOString()
   const localRequest = loadPasswordResetRequests().find(
@@ -138,7 +134,7 @@ export const markPasswordResetAsSent = async (id: string) => {
 
   try {
     const requestOptions: RequestInit = {
-      method: 'PATCH',
+      method: 'POST',
     }
 
     if (localRequest) {
@@ -147,7 +143,7 @@ export const markPasswordResetAsSent = async (id: string) => {
 
     const backendRequest = await apiRequest<PasswordResetRequest | null>(
       `/password-resets/${id}/send`,
-      requestOptions,
+      requestOptions
     )
 
     if (!backendRequest) {
@@ -181,26 +177,9 @@ export const markPasswordResetAsSent = async (id: string) => {
 
 }
 
-export const fetchPasswordResetSmtpStatus = () =>
-  apiRequest<PasswordResetSmtpStatus>('/password-resets/smtp-status')
-
-export const resetPasswordWithOtp = async ({
-  newPassword,
-  otp,
-  token,
-}: {
-  newPassword: string
-  otp: string
-  token: string
-}) => {
-  return apiRequest<{ success: boolean }>(
-    `/password-resets/${encodeURIComponent(token)}/reset`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        otp,
-        password: newPassword,
-      }),
-    },
-  )
+export const completePasswordReset = async (id: string, otp: string, newPassword: string) => {
+  return apiRequest(`/password-resets/${id}/reset`, {
+    method: 'POST',
+    body: JSON.stringify({ otp, password: newPassword }),
+  })
 }

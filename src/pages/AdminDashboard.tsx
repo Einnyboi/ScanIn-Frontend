@@ -1,10 +1,14 @@
 import {
+  CalendarDays,
+  Clock,
+  Bell,
+} from 'lucide-react'
+import {
   useEffect,
   useMemo,
-  useState,
-  type FormEvent,
-  type ReactNode,
+  useState
 } from 'react'
+<<<<<<< HEAD
 import { createPortal } from 'react-dom'
 import {
   Bar,
@@ -45,18 +49,20 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react'
+=======
+>>>>>>> ff10712493193fee493d2c3e6d43c02c39282d2e
 
-import { loadLocalProfiles } from '../lib/localSession'
-import type { CorrectionTicket, CourseSchedule, ScanRecord } from '../types/attendance'
+import type { CorrectionTicket, CourseSchedule } from '../types/attendance'
 import type { LocalSession } from '../types/auth'
+import { 
+  buildAdminAnalytics, 
+  formatAdminDate, 
+  formatAdminTime 
+} from '../utils/adminDashboard'
 import {
-  adminUsersChangedEvent,
   fetchAdminUsersFromBackend,
-  getAdminUserKey,
-  loadAdminUsers,
   saveAdminUsers,
-  type AdminUser,
-  type AdminUserRole,
+  type AdminUser
 } from '../utils/adminUsers'
 import {
   fetchScanRecordsFromBackend,
@@ -69,29 +75,40 @@ import {
   supportComplaintsChangedEvent,
   type SupportComplaint,
 } from '../utils/complaints'
+import { isPasswordResetActionable } from '../utils/adminDashboard'
 import {
   createGeneratedReport,
   fetchReportsFromBackend,
-  formatReportDate,
   loadGeneratedReports,
+<<<<<<< HEAD
   reportToCsv,
   reportToRows,
+=======
+>>>>>>> ff10712493193fee493d2c3e6d43c02c39282d2e
   reportsChangedEvent,
   saveGeneratedReports,
   type GeneratedReport,
-  type ReportKind,
+  type ReportKind
 } from '../utils/reports'
 import {
-  createScheduleId,
   fetchSchedulesFromBackend,
   loadSchedules,
   saveSchedules,
-  scheduleChangedEvent,
+  scheduleChangedEvent
 } from '../utils/schedules'
 import {
   fetchTicketsFromBackend,
+  ticketsChangedEvent,
   updateStoredTicket,
 } from '../utils/tickets'
+import { AttendanceView } from './admin-dashboard/AttendanceView'
+import { DashboardView } from './admin-dashboard/DashboardView'
+import { NotificationsView } from './admin-dashboard/NotificationsView'
+import { ReportsView } from './admin-dashboard/ReportsView'
+import { ScheduleView } from './admin-dashboard/ScheduleView'
+import { TicketsView } from './admin-dashboard/TicketsView'
+import { UsersView } from './admin-dashboard/UsersView'
+import { AdminSidebar, AdminNoticeBanner } from './admin-dashboard/shared'
 import {
   fetchPasswordResetSmtpStatus,
   fetchPasswordResetRequestsFromBackend,
@@ -115,31 +132,10 @@ type AdminView =
   | 'tickets'
   | 'notifications'
 
-type DeleteConfirmation = {
-  title: string
-  description: string
-  confirmLabel: string
-  onConfirm: () => void
-}
-
 type AdminNotice = {
   message: string
   tone: 'danger' | 'success' | 'warning'
 }
-
-const purple = '#5c3386'
-const maroon = '#7d2228'
-const amber = '#edae36'
-const adminDeletePin = '1234'
-
-const menuItems: Array<{ id: AdminView; label: string; icon: LucideIcon }> = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'users', label: 'Pengguna', icon: Users },
-  { id: 'schedule', label: 'Jadwal', icon: CalendarDays },
-  { id: 'attendance', label: 'Presensi', icon: ClipboardList },
-  { id: 'reports', label: 'Laporan', icon: FileText },
-  { id: 'tickets', label: 'Tiket', icon: TicketIcon },
-]
 
 const pageMeta: Record<
   AdminView,
@@ -182,84 +178,12 @@ const pageMeta: Record<
   },
 }
 
-const defaultAdminUsers: AdminUser[] = [
-  {
-    id: '535240187',
-    name: "Naisya Yuen Ra'af",
-    email: 'naisya@stu.untar.ac.id',
-    role: 'Mahasiswa',
-    status: 'Aktif',
-  },
-  {
-    id: '535240156',
-    name: 'Ahmad Rizki',
-    email: 'ahmad@stu.untar.ac.id',
-    role: 'Mahasiswa',
-    status: 'Aktif',
-  },
-  {
-    id: '198503152010121001',
-    name: 'Dr. Ahmad Santoso',
-    email: 'ahmad.santoso@untar.ac.id',
-    role: 'Pengajar',
-    status: 'Aktif',
-  },
-  {
-    id: '198808122015032002',
-    name: 'Ir. Siti Nurhaliza',
-    email: 'siti.nurhaliza@untar.ac.id',
-    role: 'Pengajar',
-    status: 'Aktif',
-  },
-  {
-    id: 'admin-fti',
-    name: 'Admin Fakultas',
-    email: 'admin.fti@untar.ac.id',
-    role: 'Admin',
-    status: 'Aktif',
-  },
-]
-
-type MonthlyAttendancePoint = {
-  month: string
-  percentage: number
-  hadir: number
-  terlambat: number
-  alpha: number
-}
-
-type DaySessionsPoint = {
-  day: string
-  sessions: number
-}
-
-type ClassPerformancePoint = {
-  course: string
-  percentage: number
-}
-
-type AdminAnalytics = {
-  monthlyAttendance: MonthlyAttendancePoint[]
-  sessionsPerDay: DaySessionsPoint[]
-  classPerformance: ClassPerformancePoint[]
-  statusDistribution: Array<{ name: string; value: number; color: string }>
-  attendanceRate: number
-  lateRate: number
-  absentRate: number
-  attendanceTrend: string
-  lateTrend: string
-  absentTrend: string
-  totalSessions: number
-}
-
 export default function AdminDashboard({
   session,
   onLogout,
 }: AdminDashboardProps) {
   const [activeView, setActiveView] = useState<AdminView>('dashboard')
-  const [users, setUsers] = useState<AdminUser[]>(() =>
-    loadAdminUsers(buildAdminUsers(loadLocalProfiles())),
-  )
+  const [users, setUsers] = useState<AdminUser[]>([])
   const [schedules, setSchedules] = useState<CourseSchedule[]>(() =>
     loadSchedules(),
   )
@@ -295,21 +219,11 @@ export default function AdminDashboard({
   }, [])
 
   useEffect(() => {
-    const fallbackUsers = buildAdminUsers(loadLocalProfiles())
-    const reload = () => setUsers(loadAdminUsers(fallbackUsers))
-
-    void fetchAdminUsersFromBackend(fallbackUsers).then((backendUsers) => {
+    void fetchAdminUsersFromBackend().then((backendUsers) => {
       if (backendUsers) {
         setUsers(backendUsers)
       }
     })
-
-    window.addEventListener('storage', reload)
-    window.addEventListener(adminUsersChangedEvent, reload)
-    return () => {
-      window.removeEventListener('storage', reload)
-      window.removeEventListener(adminUsersChangedEvent, reload)
-    }
   }, [])
 
   useEffect(() => {
@@ -337,19 +251,17 @@ export default function AdminDashboard({
         }
       })
     }
-
-    void fetchTicketsFromBackend([]).then((backendTickets) => {
-      if (backendTickets) {
-        setTickets(backendTickets)
-      }
-    })
-
+    
+    reload()
+    
     window.addEventListener('storage', reload)
+    window.addEventListener(ticketsChangedEvent, reload)
     return () => {
       window.removeEventListener('storage', reload)
+      window.removeEventListener(ticketsChangedEvent, reload)
     }
   }, [])
-
+  
   useEffect(() => {
     const reload = () => setReports(loadGeneratedReports())
 
@@ -418,14 +330,21 @@ export default function AdminDashboard({
     }
   }, [])
 
-  const handleUsersChange = (nextUsers: AdminUser[]) => {
-    setUsers(nextUsers)
-    saveAdminUsers(nextUsers)
+  const handleUsersChange = async (nextUsers: AdminUser[], sync = true) => {
+    if (sync) {
+      // This path is no longer recommended, but kept for safety.
+      const backendUsers = await saveAdminUsers(nextUsers)
+      setUsers(backendUsers)
+    } else {
+      setUsers(nextUsers)
+    }
   }
 
-  const handleSchedulesChange = (nextSchedules: CourseSchedule[]) => {
+  const handleSchedulesChange = (nextSchedules: CourseSchedule[], sync = true) => {
     setSchedules(nextSchedules)
-    saveSchedules(nextSchedules)
+    if (sync) {
+      saveSchedules(nextSchedules)
+    }
   }
 
   const handleTicketAction = async (
@@ -483,14 +402,14 @@ export default function AdminDashboard({
 
     if (request.emailStatus === 'SMTP_NOT_CONFIGURED') {
       const smtpStatus = await fetchPasswordResetSmtpStatus().catch(() => null)
-      const missingConfig = smtpStatus?.missing?.length
+      const missingConfig = smtpStatus?.missing?.length 
         ? ` Lengkapi ${smtpStatus.missing.join(', ')} di file .env backend, lalu restart backend.`
         : ''
 
       setAdminNotice({
         tone: 'warning',
         message:
-          `Email OTP belum dapat dikirim karena konfigurasi SMTP belum lengkap.${missingConfig}`,
+          request.resetUrl ? `SMTP belum aktif. Namun link reset berhasil dibuat: ${request.resetUrl}.${missingConfig}` : `Permintaan tercatat, tapi SMTP backend belum dikonfigurasi jadi email asli belum terkirim.${missingConfig}`,
       })
       return
     }
@@ -516,20 +435,9 @@ export default function AdminDashboard({
       <main className="min-w-0">
         <div className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-5 py-3 backdrop-blur sm:px-7">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <nav
-              className="flex items-center gap-3 text-sm font-black text-slate-400"
-              aria-label="Breadcrumb admin"
-            >
-              <span className="flex h-9 w-32 items-center">
-                <img
-                  src="/logo-fti.png"
-                  alt="Logo FTI UNTAR"
-                  className="max-h-full w-full object-contain"
-                />
-              </span>
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            <nav className="flex items-center gap-3 text-sm font-black text-slate-400" aria-label="Breadcrumb admin">
+              <span className="flex h-9 w-32 items-center"><img src="/logo-fti.png" alt="Logo FTI UNTAR" className="max-h-full w-full object-contain" /></span>
               <span>Admin</span>
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
               <span className="text-[#5c3386]">{meta.breadcrumb}</span>
             </nav>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -566,28 +474,27 @@ export default function AdminDashboard({
         </div>
 
         <div className="px-5 py-6 pb-20 sm:px-7 lg:px-8 xl:px-10">
-        {adminNotice ? (
-          <AdminNoticeBanner
-            notice={adminNotice}
-            onClose={() => setAdminNotice(null)}
-          />
-        ) : null}
+          {adminNotice ? (
+            <AdminNoticeBanner
+              notice={adminNotice}
+              onClose={() => setAdminNotice(null)}
+            />
+          ) : null}
 
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-              {meta.title}
-            </h1>
-            <p className="mt-2 text-base font-semibold text-slate-500">
-              {meta.subtitle}
-            </p>
-          </div>
-        </header>
+          <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                {meta.title}
+              </h1>
+              <p className="mt-2 text-base font-semibold text-slate-500">
+                {meta.subtitle}
+              </p>
+            </div>
+          </header>
 
         <div className="mt-6">
           {activeView === 'dashboard' ? (
             <DashboardView
-              complaints={complaints}
               analytics={analytics}
               onSendReset={handleSendReset}
               passwordRequests={passwordRequests}
@@ -635,6 +542,7 @@ export default function AdminDashboard({
     </div>
   )
 }
+<<<<<<< HEAD
 
 function AdminSidebar({
   activeView,
@@ -3286,3 +3194,5 @@ function formatTrendChange(currentValue: number, previousValue: number) {
 
   return formattedDelta
 }
+=======
+>>>>>>> ff10712493193fee493d2c3e6d43c02c39282d2e

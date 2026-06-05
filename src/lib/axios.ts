@@ -1,28 +1,41 @@
-import axios from 'axios';
+import { apiRequest } from '../utils/api'
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api',
-  withCredentials: true,
-})
+type ApiResponse<T> = {
+  data: T
+}
 
-// Inject JWT token otomatis ke setiap request
-api.interceptors.request.use((config) => {
+const requestWithData = async <T>(
+  path: string,
+  options?: RequestInit,
+): Promise<ApiResponse<T>> => {
   const token = localStorage.getItem('scanin_token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+  const response = await apiRequest<T>(path, {
+    ...options,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
+  })
 
-// Handle 401 — token expired, redirect ke login
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('scanin_token')
-      localStorage.removeItem('scanin_user')
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  },
-)
+  return { data: response }
+}
+
+const api = {
+  get: <T>(path: string) => requestWithData<T>(path),
+  post: <T>(path: string, body?: unknown) =>
+    requestWithData<T>(path, {
+      method: 'POST',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  patch: <T>(path: string, body?: unknown) =>
+    requestWithData<T>(path, {
+      method: 'PATCH',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  delete: <T>(path: string) =>
+    requestWithData<T>(path, {
+      method: 'DELETE',
+    }),
+}
 
 export default api

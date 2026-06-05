@@ -1,10 +1,15 @@
-import { type FormEvent, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { BrandPanel } from '../components/BrandPanel'
 import { LoginForm } from '../components/LoginForm'
 import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { LoginHelpPage } from './LoginHelpPage'
+<<<<<<< HEAD
 import { saveSession } from '../lib/localSession'
+=======
+import { ResetPasswordPage } from './ResetPasswordPage'
+import { clearSession, loadSession, saveSession } from '../lib/localSession'
+>>>>>>> ff10712493193fee493d2c3e6d43c02c39282d2e
 import { getRoleOption } from '../lib/roleOptions'
 import type { LocalSession, Role } from '../types/auth'
 import { isUntarAccount } from '../utils/accounts'
@@ -20,8 +25,19 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [authView, setAuthView] = useState<'login' | 'forgot' | 'help'>('login')
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'help' | 'reset'>('login')
+  const [resetToken, setResetToken] = useState<string | null>(null)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    
+    if (window.location.pathname === '/reset-password' && token) {
+      setResetToken(token)
+      setAuthView('reset')
+    }
+  }, [])
 
   const activeRole = useMemo(() => getRoleOption(selectedRole), [selectedRole])
 
@@ -98,6 +114,18 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       <LoginHelpPage
         initialRole={selectedRole}
         onBack={() => setAuthView('login')}
+      />
+    )
+  }
+
+  if (authView === 'reset' && resetToken) {
+    return (
+      <ResetPasswordPage
+        token={resetToken}
+        onBack={() => {
+          window.history.replaceState({}, '', '/')
+          setAuthView('login')
+        }}
       />
     )
   }

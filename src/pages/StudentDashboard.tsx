@@ -156,13 +156,7 @@ export function StudentDashboard({ session, onLogout }: StudentDashboardProps) {
         }
       })
 
-    void fetchTicketsFromBackend([]).then((backendTickets) => {
-      if (backendTickets) {
-        setStudentTickets(
-          backendTickets.filter((ticket) => ticket.studentId === session.identity),
-        )
-      }
-    })
+    reloadTickets()
 
     window.addEventListener('storage', reloadTickets)
     window.addEventListener(ticketsChangedEvent, reloadTickets)
