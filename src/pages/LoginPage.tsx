@@ -1,27 +1,27 @@
 import { type FormEvent, useMemo, useState } from 'react'
 
-import AdminDashboard from './AdminDashboard'
 import { BrandPanel } from '../components/BrandPanel'
 import { LoginForm } from '../components/LoginForm'
-import { LecturerDashboard } from './LecturerDashboard'
-import { StudentDashboard } from './StudentDashboard'
 import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { LoginHelpPage } from './LoginHelpPage'
-import { clearSession, loadSession, saveSession } from '../lib/localSession'
+import { saveSession } from '../lib/localSession'
 import { getRoleOption } from '../lib/roleOptions'
 import type { LocalSession, Role } from '../types/auth'
 import { isUntarAccount } from '../utils/accounts'
 import { loginWithBackend } from '../utils/authApi'
 import { validatePassword } from '../utils/password'
 
-export function LoginPage() {
+type LoginPageProps = {
+  onLogin: (session: LocalSession) => void
+}
+
+export function LoginPage({ onLogin }: LoginPageProps) {
   const [selectedRole, setSelectedRole] = useState<Role>('mahasiswa')
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [authView, setAuthView] = useState<'login' | 'forgot' | 'help'>('login')
   const [error, setError] = useState('')
-  const [session, setSession] = useState<LocalSession | null>(() => loadSession())
 
   const activeRole = useMemo(() => getRoleOption(selectedRole), [selectedRole])
 
@@ -79,30 +79,9 @@ export function LoginPage() {
     }
 
     saveSession(nextSession)
-    setSession(nextSession)
+    onLogin(nextSession)
     setError('')
     setPassword('')
-  }
-
-  const handleLogout = () => {
-    clearSession()
-    setSession(null)
-    setAccount('')
-    setPassword('')
-    setError('')
-    setAuthView('login')
-  }
-
-  if (session?.role === 'mahasiswa') {
-    return <StudentDashboard session={session} onLogout={handleLogout} />
-  }
-
-  if (session?.role === 'pengajar') {
-    return <LecturerDashboard session={session} onLogout={handleLogout} />
-  }
-
-  if (session?.role === 'admin') {
-    return <AdminDashboard session={session} onLogout={handleLogout} />
   }
 
   if (authView === 'forgot') {

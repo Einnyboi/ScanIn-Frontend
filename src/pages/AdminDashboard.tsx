@@ -5,6 +5,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Bar,
   BarChart,
@@ -26,6 +27,7 @@ import {
   ClipboardList,
   Clock,
   Download,
+  Eye,
   FileText,
   KeyRound,
   LayoutDashboard,
@@ -73,6 +75,7 @@ import {
   formatReportDate,
   loadGeneratedReports,
   reportToCsv,
+  reportToRows,
   reportsChangedEvent,
   saveGeneratedReports,
   type GeneratedReport,
@@ -1845,6 +1848,7 @@ function ReportsView({
   onGenerateReport: (kind?: ReportKind) => void
   reports: GeneratedReport[]
 }) {
+  const [previewReport, setPreviewReport] = useState<GeneratedReport | null>(null)
   const reportActions: Array<{
     description: string
     kind: ReportKind
@@ -1996,16 +2000,184 @@ function ReportsView({
               </div>
               <button
                 type="button"
-                onClick={() => downloadReport(report)}
+                onClick={() => setPreviewReport(report)}
                 className="flex h-14 items-center justify-center gap-3 rounded-[8px] border border-[#5c3386] px-6 text-base font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
               >
-                <Download className="h-4 w-4" />
-                Download
+                <Eye className="h-4 w-4" />
+                Lihat Laporan
               </button>
             </article>
           ))}
+          {!reports.length ? (
+            <EmptyState text="Belum ada laporan. Pilih jenis laporan untuk membuat laporan baru." />
+          ) : null}
         </div>
       </AdminCard>
+
+      {previewReport ? (
+        <ReportPreviewModal
+          onClose={() => setPreviewReport(null)}
+          report={previewReport}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function ReportPreviewModal({
+  onClose,
+  report,
+}: {
+  onClose: () => void
+  report: GeneratedReport
+}) {
+  const rows = reportToRows(report)
+  const [headers = [], ...bodyRows] = rows
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/65 p-0 backdrop-blur-sm sm:items-center sm:p-5"
+      onClick={onClose}
+    >
+      <section
+        aria-labelledby="report-preview-title"
+        aria-modal="true"
+        className="admin-surface flex max-h-[92svh] w-full max-w-6xl flex-col overflow-hidden rounded-t-[12px] bg-white shadow-2xl shadow-slate-950/30 sm:rounded-[12px]"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-7">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7d2228]">
+              Preview Laporan
+            </p>
+            <h2
+              className="mt-1 text-xl font-black text-slate-950 sm:text-2xl"
+              id="report-preview-title"
+            >
+              {report.title}
+            </h2>
+            <p className="mt-2 text-sm font-semibold text-slate-500">
+              {report.description}
+            </p>
+          </div>
+          <button
+            aria-label="Tutup preview laporan"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-slate-200 text-slate-500 transition hover:border-[#7d2228]/35 hover:text-[#7d2228]"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f8fb] px-4 py-5 sm:px-7 sm:py-6">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <ReportPreviewSummary label="Periode" value={report.month} />
+            <ReportPreviewSummary
+              label="Tanggal Dibuat"
+              value={formatReportDate(report.createdAt)}
+            />
+            <ReportPreviewSummary
+              label="Jumlah Data"
+              value={`${bodyRows.length} baris`}
+            />
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-[8px] border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
+              <h3 className="text-base font-black text-slate-950">
+                Isi Laporan
+              </h3>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Data berikut akan dimasukkan ke file CSV.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] border-collapse text-left">
+                <thead className="bg-[#5c3386]/7">
+                  <tr>
+                    {headers.map((header, index) => (
+                      <th
+                        className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#5c3386]"
+                        key={`${header}-${index}`}
+                      >
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {bodyRows.map((row, rowIndex) => (
+                    <tr
+                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                      key={`${report.id}-row-${rowIndex}`}
+                    >
+                      {row.map((cell, cellIndex) => (
+                        <td
+                          className="px-4 py-3 text-sm font-semibold text-slate-600"
+                          key={`${report.id}-${rowIndex}-${cellIndex}`}
+                        >
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <footer className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
+          <button
+            className="flex h-12 items-center justify-center rounded-[8px] border border-slate-200 px-6 text-sm font-black text-slate-600 transition hover:border-[#5c3386]/35 hover:text-[#5c3386]"
+            onClick={onClose}
+            type="button"
+          >
+            Tutup
+          </button>
+          <button
+            className="flex h-12 items-center justify-center gap-2 rounded-[8px] bg-[#5c3386] px-6 text-sm font-black text-white shadow-lg shadow-[#5c3386]/20 transition hover:bg-[#4f2b73]"
+            onClick={() => downloadReport(report)}
+            type="button"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Download CSV
+          </button>
+        </footer>
+      </section>
+    </div>,
+    document.body,
+  )
+}
+
+function ReportPreviewSummary({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div className="rounded-[8px] border border-slate-200 bg-white px-4 py-4">
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-black text-slate-950">{value}</p>
     </div>
   )
 }

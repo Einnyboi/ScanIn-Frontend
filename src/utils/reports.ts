@@ -19,6 +19,9 @@ export type ReportKind =
   | 'class-performance'
   | 'at-risk-students'
 
+export type ReportCell = number | string
+export type ReportRows = ReportCell[][]
+
 const reportKey = 'scanin-generated-reports'
 export const reportsChangedEvent = 'scanin:reports-changed'
 
@@ -82,37 +85,41 @@ export const createGeneratedReport = (
 }
 
 export const reportToCsv = (report: GeneratedReport) => {
+  return rowsToCsv(reportToRows(report))
+}
+
+export const reportToRows = (report: GeneratedReport): ReportRows => {
   if (report.kind === 'system-usage') {
-    return rowsToCsv([
+    return [
       ['Metrik', 'Nilai', 'Periode'],
       ['Total Login', 382, report.month],
       ['Scan QR Berhasil', 918, report.month],
       ['Tiket Diproses', 42, report.month],
       ['Permintaan Reset Password', 8, report.month],
       ['Laporan Diunduh', 16, report.month],
-    ])
+    ]
   }
 
   if (report.kind === 'class-performance') {
-    return rowsToCsv([
+    return [
       ['Mata Kuliah', 'Kehadiran', 'Terlambat', 'Alpha', 'Total Sesi'],
       ['Kecerdasan Buatan', '92%', '6%', '2%', 40],
       ['Jaringan Komputer', '91%', '7%', '2%', 36],
       ['Basis Data Lanjut', '89%', '8%', '3%', 42],
       ['Pemrograman Web', '85%', '11%', '4%', 38],
-    ])
+    ]
   }
 
   if (report.kind === 'at-risk-students') {
-    return rowsToCsv([
+    return [
       ['NIM', 'Nama', 'Kehadiran', 'Tiket Aktif', 'Catatan'],
       ['535240165', 'Eko Prasetyo', '68%', 2, 'Kehadiran di bawah batas aman'],
       ['535240198', 'Hendra Gunawan', '70%', 1, 'Tidak hadir berulang'],
       ['535240178', 'Dewi Lestari', '74%', 1, 'Perlu pemantauan dosen wali'],
-    ])
+    ]
   }
 
-  return rowsToCsv([
+  return [
     [
       'Judul',
       'Bulan',
@@ -131,7 +138,7 @@ export const reportToCsv = (report: GeneratedReport) => {
       `${report.absentPercentage}%`,
       report.totalSessions,
     ],
-  ])
+  ]
 }
 
 export const formatReportDate = (date: string) =>
@@ -216,7 +223,7 @@ const getReportTemplate = (kind: ReportKind, month: string) => {
   }
 }
 
-const rowsToCsv = (rows: Array<Array<number | string>>) =>
+const rowsToCsv = (rows: ReportRows) =>
   rows
     .map((row) =>
       row
