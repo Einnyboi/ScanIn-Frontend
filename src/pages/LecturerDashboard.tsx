@@ -9,6 +9,7 @@ import {
 import { LecturerSessionPage } from './LecturerSessionPage'
 import type {
   CourseSchedule,
+  QrPayload,
   ScanRecord,
 } from '../types/attendance'
 import type { LocalSession } from '../types/auth'
@@ -118,8 +119,8 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     setScannerMessage(`Sesi ${course.title} aktif. Scanner siap membaca QR.`)
   }
 
-  const handleLocalScan = (): LocalScanResult => {
-    const payload = loadActiveQrPayload()
+  const handleLocalScan = (cameraPayload?: QrPayload): LocalScanResult => {
+    const payload = cameraPayload ?? loadActiveQrPayload()
 
     if (!payload) {
       const message = 'Belum ada QR mahasiswa aktif yang bisa dibaca.'
