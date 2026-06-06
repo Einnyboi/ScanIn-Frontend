@@ -18,7 +18,7 @@ type LecturerSessionPageProps = {
   scanRecords: ScanRecord[]
   onBack: () => void
   onCloseSession: () => void
-  onLocalScan: () => LocalScanResult
+  onLocalScan: (payload?: QrPayload) => LocalScanResult
   onManualMark: (
     student: ManualStudent,
     status: 'Terverifikasi' | 'Terlambat' | 'Tidak Hadir',
@@ -75,6 +75,27 @@ export function LecturerSessionPage({
   const secondsLeft = getAutoCloseSecondsLeft(course, now)
   const autoCloseAt = getSessionAutoCloseAt(course, now)
 
+  const stopCamera = useCallback(async () => {
+    const scanner = html5QrCodeRef.current
+
+    if (!scanner) {
+      setIsScannerActive(false)
+      return
+    }
+
+    try {
+      if (scanner.isScanning) {
+        await scanner.stop()
+      }
+      await scanner.clear()
+    } catch (error) {
+      console.error(error)
+    } finally {
+      html5QrCodeRef.current = null
+      setIsScannerActive(false)
+    }
+  }, [])
+
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1_000)
     return () => window.clearInterval(timer)
@@ -88,11 +109,27 @@ export function LecturerSessionPage({
 
   useEffect(() => {
     return () => {
-      if (html5QrCodeRef.current?.isScanning) {
-        html5QrCodeRef.current.stop().catch(console.error)
+      const scanner = html5QrCodeRef.current
+      html5QrCodeRef.current = null
+
+      if (scanner?.isScanning) {
+        scanner
+          .stop()
+          .then(() => scanner.clear())
+          .catch(console.error)
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (mode === 'manual') {
+      void stopCamera()
+    }
+  }, [mode, stopCamera])
+
+  useEffect(() => {
+    lastScannedTokenRef.current = ''
+  }, [course.id])
 
   const latestRecordByStudent = useMemo(() => {
     const latestRecords = new Map<string, ScanRecord>()
@@ -156,19 +193,40 @@ export function LecturerSessionPage({
 
   const attemptCameraScan = useCallback(
     async (decodedText?: string, forceMessage = false) => {
-      let payload: QrPayload | null = null;
+      let payload: QrPayload | null = null
+
       if (decodedText) {
         try {
-          const parsed = JSON.parse(decodedText)
-          if (parsed.type === 'SCANIN_ATTENDANCE') {
-            payload = parsed as QrPayload
+          const parsed = JSON.parse(decodedText) as Partial<QrPayload> & {
+            type?: string
+          }
+
+          if (isScaninQrPayload(parsed)) {
+            payload = {
+              courseId: parsed.courseId,
+              courseTitle: parsed.courseTitle,
+              expiresAt: parsed.expiresAt,
+              issuedAt: parsed.issuedAt,
+              room: parsed.room,
+              studentId: parsed.studentId,
+              studentName: parsed.studentName,
+              token: parsed.token,
+            }
             saveActiveQrPayload(payload)
           } else {
-            setCameraMessage('QR terbaca, tapi format tidak dikenali.')
+            commitScanResult({
+              success: false,
+              title: 'QR tidak dikenali',
+              message: 'QR terbaca, tetapi bukan QR presensi ScanIn.',
+            })
             return
           }
         } catch {
-          setCameraMessage('QR terbaca (bukan JSON): ' + decodedText.slice(0, 30))
+          commitScanResult({
+            success: false,
+            title: 'QR tidak valid',
+            message: `QR terbaca, tetapi format datanya tidak valid: ${decodedText.slice(0, 30)}`,
+          })
           return
         }
       } else {
@@ -183,28 +241,42 @@ export function LecturerSessionPage({
       }
 
       if (payload.courseId !== course.id) {
-        if (forceMessage) {
-          setCameraMessage('QR terbaca, tetapi bukan untuk sesi kelas ini.')
-        }
+        commitScanResult({
+          success: false,
+          title: 'QR beda kelas',
+          message: `${payload.studentName} (${payload.studentId}) terbaca, tetapi QR ini untuk ${payload.courseTitle}.`,
+          studentName: payload.studentName,
+          studentId: payload.studentId,
+        })
         return
       }
 
       if (payload.token === lastScannedTokenRef.current) {
         if (forceMessage) {
-          setCameraMessage('QR ini sudah terbaca. Tunggu token mahasiswa berubah.')
+          commitScanResult({
+            success: true,
+            title: 'QR sudah terbaca',
+            message: 'QR ini sudah diproses. Tunggu token mahasiswa berubah sebelum scan ulang.',
+            studentName: payload.studentName,
+            studentId: payload.studentId,
+          })
         }
         return
       }
 
       if (isQrExpired(payload)) {
-        if (forceMessage) {
-          setCameraMessage('QR terbaca tetapi sudah kedaluwarsa.')
-        }
+        commitScanResult({
+          success: false,
+          title: 'QR kedaluwarsa',
+          message: `${payload.studentName} (${payload.studentId}) perlu menampilkan QR baru karena token ini sudah kedaluwarsa.`,
+          studentName: payload.studentName,
+          studentId: payload.studentId,
+        })
         return
       }
 
       lastScannedTokenRef.current = payload.token
-      commitScanResult(onLocalScan())
+      commitScanResult(onLocalScan(payload))
     },
     [commitScanResult, course.id, onLocalScan],
   )
@@ -212,25 +284,52 @@ export function LecturerSessionPage({
   // Interval scan no longer needed as Html5Qrcode calls us directly
 
   const handleStartCamera = async () => {
-    if (html5QrCodeRef.current?.isScanning) return;
+    if (isScannerActive) return
+
+    setCameraMessage('Meminta izin kamera...')
 
     try {
-      const html5QrCode = new Html5Qrcode("qr-reader")
+      if (html5QrCodeRef.current) {
+        await stopCamera()
+      }
+
+      const html5QrCode = new Html5Qrcode('qr-reader')
       html5QrCodeRef.current = html5QrCode
       await html5QrCode.start(
         { facingMode: 'environment' },
-        { fps: 10 },
+        {
+          fps: 12,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight)
+            const size = Math.max(120, Math.min(280, Math.floor(minEdge * 0.72)))
+            return { height: size, width: size }
+          },
+          aspectRatio: 1,
+          disableFlip: false,
+        },
         (decodedText) => {
           void attemptCameraScan(decodedText)
         },
-        undefined
+        undefined,
       )
       setIsScannerActive(true)
-      setCameraMessage('Kamera aktif. Scanner akan membaca QR secara otomatis.')
-    } catch (err: any) {
-      console.error(err)
-      setCameraMessage('Gagal menyalakan kamera: ' + (err?.message || 'Izin ditolak.'))
+      setCameraMessage('Kamera aktif. Arahkan QR mahasiswa ke kotak scanner.')
+    } catch (error) {
+      console.error(error)
+      setIsScannerActive(false)
+      setCameraMessage(`Gagal menyalakan kamera: ${getErrorMessage(error)}`)
     }
+  }
+
+  const handleToggleCamera = () => {
+    if (isScannerActive) {
+      void stopCamera().then(() => {
+        setCameraMessage('Kamera dimatikan.')
+      })
+      return
+    }
+
+    void handleStartCamera()
   }
 
   const handleCameraScan = () => {
@@ -442,7 +541,7 @@ export function LecturerSessionPage({
 
           <div className="mx-auto mt-7 max-w-md rounded-[8px] bg-slate-100 p-4">
             <div className="scanner-frame relative aspect-square overflow-hidden rounded-[8px] bg-slate-950 text-white shadow-inner">
-              <div id="qr-reader" className="absolute inset-0 h-full w-full object-cover [&>video]:object-cover" />
+              <div id="qr-reader" className="scanin-qr-reader absolute inset-0" />
               {!isScannerActive ? (
                 <div className="absolute inset-0 z-10 flex h-full items-center justify-center bg-slate-950 px-8 text-center">
                   <div>
@@ -504,10 +603,14 @@ export function LecturerSessionPage({
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <button
               type="button"
-              onClick={handleStartCamera}
-              className="flex h-12 items-center justify-center rounded-[8px] border border-[#5c3386] bg-white px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
+              onClick={handleToggleCamera}
+              className={`flex h-12 items-center justify-center rounded-[8px] border px-4 text-sm font-black transition ${
+                isScannerActive
+                  ? 'border-[#7d2228] bg-[#7d2228] text-white hover:bg-[#691c21]'
+                  : 'border-[#5c3386] bg-white text-[#5c3386] hover:bg-[#5c3386] hover:text-white'
+              }`}
             >
-              Aktifkan Kamera
+              {isScannerActive ? 'Matikan Kamera' : 'Aktifkan Kamera'}
             </button>
             <button
               type="button"
@@ -588,6 +691,30 @@ function SessionStatusPill({ status }: { status: ScanRecord['status'] }) {
 
 function ScanCorner() {
   return <div className="rounded-[8px] border-[10px] border-[#5c3386] bg-white" />
+}
+
+function isScaninQrPayload(
+  payload: Partial<QrPayload> & { type?: string },
+): payload is QrPayload & { type: 'SCANIN_ATTENDANCE' } {
+  return (
+    payload.type === 'SCANIN_ATTENDANCE' &&
+    typeof payload.token === 'string' &&
+    typeof payload.courseId === 'string' &&
+    typeof payload.courseTitle === 'string' &&
+    typeof payload.room === 'string' &&
+    typeof payload.studentId === 'string' &&
+    typeof payload.studentName === 'string' &&
+    typeof payload.issuedAt === 'string' &&
+    typeof payload.expiresAt === 'string'
+  )
+}
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  return 'izin kamera ditolak atau perangkat kamera tidak tersedia.'
 }
 
 function PeopleIcon() {
