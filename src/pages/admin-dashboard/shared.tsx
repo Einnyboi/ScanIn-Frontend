@@ -77,13 +77,13 @@ export function AdminSidebar({
     <>
       <div
         className={`border-b border-white/12 ${
-          variant === 'mobile' ? 'px-4 py-4' : 'px-5 py-6 sm:px-6'
+          variant === 'mobile' ? 'px-4 py-4' : 'px-5 py-4'
         }`}
       >
         <div className="flex items-center gap-4">
           <div
             className={`flex shrink-0 items-center justify-center rounded-[14px] bg-white/15 font-black text-white shadow-lg shadow-slate-950/15 ${
-              variant === 'mobile' ? 'h-11 w-11 text-base' : 'h-14 w-14 text-xl'
+              variant === 'mobile' ? 'h-11 w-11 text-base' : 'h-11 w-11 text-base'
             }`}
           >
             FTI
@@ -91,14 +91,14 @@ export function AdminSidebar({
           <div className="min-w-0">
             <p
               className={`font-black leading-tight text-white ${
-                variant === 'mobile' ? 'text-xl' : 'text-2xl'
+                variant === 'mobile' ? 'text-xl' : 'text-xl'
               }`}
             >
               FTI UNTAR
             </p>
             <p
               className={`font-semibold text-white/68 ${
-                variant === 'mobile' ? 'text-xs' : 'text-sm'
+                variant === 'mobile' ? 'text-xs' : 'text-xs'
               }`}
             >
               Admin Portal
@@ -119,31 +119,31 @@ export function AdminSidebar({
 
       <div
         className={`border-b border-white/12 ${
-          variant === 'mobile' ? 'px-4 py-4' : 'px-5 py-6 sm:px-6'
+          variant === 'mobile' ? 'px-4 py-4' : 'px-5 py-4'
         }`}
       >
         <div className="flex items-center gap-4">
           <div
             className={`flex shrink-0 items-center justify-center rounded-full bg-[#7d2228] text-white shadow-xl shadow-[#2d1747]/30 ${
-              variant === 'mobile' ? 'h-12 w-12' : 'h-16 w-16'
+              variant === 'mobile' ? 'h-12 w-12' : 'h-12 w-12'
             }`}
           >
             <KeyRound
-              className={variant === 'mobile' ? 'h-6 w-6' : 'h-8 w-8'}
+              className={variant === 'mobile' ? 'h-6 w-6' : 'h-6 w-6'}
               aria-hidden="true"
             />
           </div>
           <div className="min-w-0">
             <p
               className={`truncate font-black text-white ${
-                variant === 'mobile' ? 'text-lg' : 'text-xl'
+                variant === 'mobile' ? 'text-lg' : 'text-lg'
               }`}
             >
               {session.name || 'Admin'}
             </p>
             <p
               className={`mt-1 truncate font-bold text-white/62 ${
-                variant === 'mobile' ? 'text-xs' : 'text-sm'
+                variant === 'mobile' ? 'text-xs' : 'text-xs'
               }`}
             >
               ID: {session.identity || 'admin'}
@@ -153,20 +153,20 @@ export function AdminSidebar({
       </div>
 
       <div
-        className={`flex min-h-0 flex-col px-4 py-5 sm:px-5 ${
-          variant === 'desktop' ? 'flex-1 justify-between' : 'gap-3 px-3 py-4'
+        className={`flex min-h-0 flex-col ${
+          variant === 'desktop' ? 'flex-1 justify-between px-4 py-4' : 'gap-3 px-3 py-4'
         }`}
       >
         <div>
           <p
             className={`px-2 font-black uppercase tracking-[0.22em] text-white/42 ${
-              variant === 'mobile' ? 'mb-2 text-[10px]' : 'mb-3 text-xs'
+              variant === 'mobile' ? 'mb-2 text-[10px]' : 'mb-2 text-[10px]'
             }`}
           >
             Menu Utama
           </p>
           <nav
-            className={variant === 'mobile' ? 'space-y-1' : 'space-y-1.5'}
+            className={variant === 'mobile' ? 'space-y-1' : 'space-y-1'}
             aria-label="Menu admin"
           >
             {items.map((item) => {
@@ -185,12 +185,12 @@ export function AdminSidebar({
                   } ${
                     variant === 'mobile'
                       ? 'px-3 py-2.5 text-sm'
-                      : 'px-4 py-3 text-base'
+                      : 'px-3 py-2.5 text-sm'
                   }`}
                 >
                   <Icon
                     className={`shrink-0 ${
-                      variant === 'mobile' ? 'h-4 w-4' : 'h-5 w-5'
+                      variant === 'mobile' ? 'h-4 w-4' : 'h-4 w-4'
                     }`}
                     aria-hidden="true"
                   />
@@ -198,7 +198,7 @@ export function AdminSidebar({
                   {isActive ? (
                     <span
                       className={`rounded-full bg-white/82 ${
-                        variant === 'mobile' ? 'h-2 w-2' : 'h-2.5 w-2.5'
+                        variant === 'mobile' ? 'h-2 w-2' : 'h-2 w-2'
                       }`}
                     />
                   ) : null}
@@ -213,12 +213,12 @@ export function AdminSidebar({
           onClick={onLogout}
           className={`flex w-full items-center gap-3 rounded-[8px] border border-white/14 text-left font-bold text-white/74 transition hover:bg-white/10 hover:text-white ${
             variant === 'desktop'
-              ? 'mt-5 px-4 py-3 text-base'
+              ? 'mt-4 px-3 py-2.5 text-sm'
               : 'px-3 py-2.5 text-sm'
           }`}
         >
           <LogOut
-            className={variant === 'mobile' ? 'h-4 w-4' : 'h-5 w-5'}
+            className={variant === 'mobile' ? 'h-4 w-4' : 'h-4 w-4'}
             aria-hidden="true"
           />
           <span>Keluar</span>

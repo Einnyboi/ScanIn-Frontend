@@ -182,12 +182,34 @@ export default function AdminDashboard({
       return
     }
 
+    const isMobileViewport = window.matchMedia('(max-width: 767px)').matches
+    if (!isMobileViewport) {
+      document.body.style.overflow = ''
+      return
+    }
+
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = previousOverflow
     }
   }, [isMobileMenuOpen])
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia('(min-width: 768px)')
+    const closeDrawerOnDesktop = () => {
+      if (desktopQuery.matches) {
+        setIsMobileMenuOpen(false)
+        document.body.style.overflow = ''
+      }
+    }
+
+    closeDrawerOnDesktop()
+    desktopQuery.addEventListener('change', closeDrawerOnDesktop)
+    return () => {
+      desktopQuery.removeEventListener('change', closeDrawerOnDesktop)
+    }
+  }, [])
 
   useEffect(() => {
     void fetchAdminUsersFromBackend().then((backendUsers) => {
