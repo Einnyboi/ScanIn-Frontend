@@ -1,15 +1,14 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 
+import AdminDashboard from './AdminDashboard'
 import { BrandPanel } from '../components/BrandPanel'
 import { LoginForm } from '../components/LoginForm'
+import { LecturerDashboard } from './LecturerDashboard'
+import { StudentDashboard } from './StudentDashboard'
 import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { LoginHelpPage } from './LoginHelpPage'
-<<<<<<< HEAD
-import { saveSession } from '../lib/localSession'
-=======
 import { ResetPasswordPage } from './ResetPasswordPage'
 import { clearSession, loadSession, saveSession } from '../lib/localSession'
->>>>>>> ff10712493193fee493d2c3e6d43c02c39282d2e
 import { getRoleOption } from '../lib/roleOptions'
 import type { LocalSession, Role } from '../types/auth'
 import { isUntarAccount } from '../utils/accounts'
@@ -17,10 +16,10 @@ import { loginWithBackend } from '../utils/authApi'
 import { validatePassword } from '../utils/password'
 
 type LoginPageProps = {
-  onLogin: (session: LocalSession) => void
+  onLogin?: (session: LocalSession | null) => void
 }
 
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage({ onLogin }: LoginPageProps = {}) {
   const [selectedRole, setSelectedRole] = useState<Role>('mahasiswa')
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
@@ -28,11 +27,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [authView, setAuthView] = useState<'login' | 'forgot' | 'help' | 'reset'>('login')
   const [resetToken, setResetToken] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [session, setSession] = useState<LocalSession | null>(() => loadSession())
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const token = params.get('token')
-    
+
     if (window.location.pathname === '/reset-password' && token) {
       setResetToken(token)
       setAuthView('reset')
@@ -95,9 +95,32 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
 
     saveSession(nextSession)
-    onLogin(nextSession)
+    setSession(nextSession)
+    onLogin?.(nextSession)
     setError('')
     setPassword('')
+  }
+
+  const handleLogout = () => {
+    clearSession()
+    setSession(null)
+    setAccount('')
+    setPassword('')
+    setError('')
+    setAuthView('login')
+    onLogin?.(null)
+  }
+
+  if (session?.role === 'mahasiswa') {
+    return <StudentDashboard session={session} onLogout={handleLogout} />
+  }
+
+  if (session?.role === 'pengajar') {
+    return <LecturerDashboard session={session} onLogout={handleLogout} />
+  }
+
+  if (session?.role === 'admin') {
+    return <AdminDashboard session={session} onLogout={handleLogout} />
   }
 
   if (authView === 'forgot') {
