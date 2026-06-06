@@ -96,6 +96,40 @@ input {
   overflow: hidden;
 }
 
+.scanin-qr-reader,
+.scanin-qr-reader > div,
+.scanin-qr-reader #qr-reader__scan_region {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+}
+
+.scanin-qr-reader video,
+.scanin-qr-reader canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+.scanin-qr-reader #qr-reader__scan_region {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.scanin-qr-reader #qr-reader__dashboard,
+.scanin-qr-reader #qr-reader__header_message,
+.scanin-qr-reader img {
+  display: none !important;
+}
+
+.scanin-qr-reader #qr-shaded-region {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
 .scanner-frame::after {
   position: absolute;
   right: 16px;
