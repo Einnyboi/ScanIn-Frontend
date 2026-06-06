@@ -1,5 +1,20 @@
 import { useState, type ReactNode } from 'react'
-import { ArrowLeft, KeyRound, Pencil, Trash2, X, type LucideIcon } from 'lucide-react'
+import {
+  ArrowLeft,
+  Bell,
+  CalendarDays,
+  ClipboardList,
+  FileText,
+  KeyRound,
+  LayoutDashboard,
+  LogOut,
+  Pencil,
+  Ticket,
+  Trash2,
+  Users,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 
 import type { AdminUser, AdminUserRole } from '../../utils/adminUsers'
 import type { CorrectionTicket } from '../../types/attendance'
@@ -30,65 +45,218 @@ type AdminView =
 
 export function AdminSidebar({
   activeView,
+  isMobileOpen = false,
+  onCloseMobile,
   onViewChange,
   onLogout,
   session,
 }: {
   activeView: AdminView
+  isMobileOpen?: boolean
+  onCloseMobile?: () => void
   onViewChange: (view: AdminView) => void
   onLogout: () => void
   session: LocalSession
 }) {
-  const items: Array<{ id: AdminView; label: string }> = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'users', label: 'Pengguna' },
-    { id: 'schedule', label: 'Jadwal' },
-    { id: 'attendance', label: 'Presensi' },
-    { id: 'reports', label: 'Laporan' },
-    { id: 'tickets', label: 'Tiket' },
-    { id: 'notifications', label: 'Notifikasi' },
+  const items: Array<{ id: AdminView; label: string; icon: LucideIcon }> = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'users', label: 'Pengguna', icon: Users },
+    { id: 'schedule', label: 'Jadwal', icon: CalendarDays },
+    { id: 'attendance', label: 'Presensi', icon: ClipboardList },
+    { id: 'reports', label: 'Laporan', icon: FileText },
+    { id: 'tickets', label: 'Tiket', icon: Ticket },
+    { id: 'notifications', label: 'Notifikasi', icon: Bell },
   ]
 
-  return (
-    <aside className="bg-[#5c3386] text-white p-6">
-      <div className="mb-6">
-        <img
-          src="/logo-fti.png"
-          alt="Logo FTI UNTAR"
-          className="w-full max-w-[180px]"
-        />
-      </div>
+  const handleViewChange = (view: AdminView) => {
+    onViewChange(view)
+    onCloseMobile?.()
+  }
 
-      <div className="mb-6">
-        <p className="font-bold">{session.name}</p>
-        <p className="text-sm opacity-80">{session.role}</p>
-      </div>
-
-      <nav className="space-y-2">
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onViewChange(item.id)}
-            className={`block w-full rounded-lg px-4 py-3 text-left ${
-              activeView === item.id
-                ? 'bg-[#7d2228]'
-                : 'hover:bg-white/10'
+  const content = (variant: 'desktop' | 'mobile') => (
+    <>
+      <div
+        className={`border-b border-white/12 ${
+          variant === 'mobile' ? 'px-4 py-4' : 'px-5 py-6 sm:px-6'
+        }`}
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className={`flex shrink-0 items-center justify-center rounded-[14px] bg-white/15 font-black text-white shadow-lg shadow-slate-950/15 ${
+              variant === 'mobile' ? 'h-11 w-11 text-base' : 'h-14 w-14 text-xl'
             }`}
           >
-            {item.label}
-          </button>
-        ))}
-      </nav>
+            FTI
+          </div>
+          <div className="min-w-0">
+            <p
+              className={`font-black leading-tight text-white ${
+                variant === 'mobile' ? 'text-xl' : 'text-2xl'
+              }`}
+            >
+              FTI UNTAR
+            </p>
+            <p
+              className={`font-semibold text-white/68 ${
+                variant === 'mobile' ? 'text-xs' : 'text-sm'
+              }`}
+            >
+              Admin Portal
+            </p>
+          </div>
+          {variant === 'mobile' ? (
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              className="ml-auto flex h-10 w-10 items-center justify-center rounded-[8px] border border-white/15 text-white transition hover:bg-white/12"
+              aria-label="Tutup menu admin"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+      </div>
 
-      <button
-        type="button"
-        onClick={onLogout}
-        className="mt-6 w-full rounded-lg border border-white/20 px-4 py-3 text-left hover:bg-white/10"
+      <div
+        className={`border-b border-white/12 ${
+          variant === 'mobile' ? 'px-4 py-4' : 'px-5 py-6 sm:px-6'
+        }`}
       >
-        Keluar
-      </button>
-    </aside>
+        <div className="flex items-center gap-4">
+          <div
+            className={`flex shrink-0 items-center justify-center rounded-full bg-[#7d2228] text-white shadow-xl shadow-[#2d1747]/30 ${
+              variant === 'mobile' ? 'h-12 w-12' : 'h-16 w-16'
+            }`}
+          >
+            <KeyRound
+              className={variant === 'mobile' ? 'h-6 w-6' : 'h-8 w-8'}
+              aria-hidden="true"
+            />
+          </div>
+          <div className="min-w-0">
+            <p
+              className={`truncate font-black text-white ${
+                variant === 'mobile' ? 'text-lg' : 'text-xl'
+              }`}
+            >
+              {session.name || 'Admin'}
+            </p>
+            <p
+              className={`mt-1 truncate font-bold text-white/62 ${
+                variant === 'mobile' ? 'text-xs' : 'text-sm'
+              }`}
+            >
+              ID: {session.identity || 'admin'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={`flex min-h-0 flex-col px-4 py-5 sm:px-5 ${
+          variant === 'desktop' ? 'flex-1 justify-between' : 'gap-3 px-3 py-4'
+        }`}
+      >
+        <div>
+          <p
+            className={`px-2 font-black uppercase tracking-[0.22em] text-white/42 ${
+              variant === 'mobile' ? 'mb-2 text-[10px]' : 'mb-3 text-xs'
+            }`}
+          >
+            Menu Utama
+          </p>
+          <nav
+            className={variant === 'mobile' ? 'space-y-1' : 'space-y-1.5'}
+            aria-label="Menu admin"
+          >
+            {items.map((item) => {
+              const Icon = item.icon
+              const isActive = activeView === item.id
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleViewChange(item.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`group flex w-full items-center gap-3 rounded-[8px] text-left font-bold transition ${
+                    isActive
+                      ? 'bg-white/15 text-white shadow-lg shadow-slate-950/10'
+                      : 'text-white/68 hover:bg-white/9 hover:text-white'
+                  } ${
+                    variant === 'mobile'
+                      ? 'px-3 py-2.5 text-sm'
+                      : 'px-4 py-3 text-base'
+                  }`}
+                >
+                  <Icon
+                    className={`shrink-0 ${
+                      variant === 'mobile' ? 'h-4 w-4' : 'h-5 w-5'
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {isActive ? (
+                    <span
+                      className={`rounded-full bg-white/82 ${
+                        variant === 'mobile' ? 'h-2 w-2' : 'h-2.5 w-2.5'
+                      }`}
+                    />
+                  ) : null}
+                </button>
+              )
+            })}
+          </nav>
+        </div>
+
+        <button
+          type="button"
+          onClick={onLogout}
+          className={`flex w-full items-center gap-3 rounded-[8px] border border-white/14 text-left font-bold text-white/74 transition hover:bg-white/10 hover:text-white ${
+            variant === 'desktop'
+              ? 'mt-5 px-4 py-3 text-base'
+              : 'px-3 py-2.5 text-sm'
+          }`}
+        >
+          <LogOut
+            className={variant === 'mobile' ? 'h-4 w-4' : 'h-5 w-5'}
+            aria-hidden="true"
+          />
+          <span>Keluar</span>
+        </button>
+      </div>
+    </>
+  )
+
+  return (
+    <>
+      <aside className="sticky top-0 hidden h-screen min-h-0 flex-col overflow-hidden bg-[#5c3386] text-white md:flex">
+        {content('desktop')}
+      </aside>
+
+      <div
+        className={`fixed inset-0 z-50 md:hidden ${
+          isMobileOpen ? '' : 'pointer-events-none'
+        }`}
+        aria-hidden={!isMobileOpen}
+      >
+        <button
+          type="button"
+          onClick={onCloseMobile}
+          className={`absolute inset-0 bg-slate-950/52 backdrop-blur-[2px] transition-opacity ${
+            isMobileOpen ? 'opacity-100' : 'opacity-0'
+          }`}
+          aria-label="Tutup menu admin"
+          tabIndex={isMobileOpen ? 0 : -1}
+        />
+        <aside
+          className={`absolute left-0 top-0 flex h-dvh w-[86vw] max-w-[340px] flex-col overflow-hidden bg-[#5c3386] text-white shadow-2xl shadow-slate-950/35 transition-transform duration-300 ease-out ${
+            isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          {content('mobile')}
+        </aside>
+      </div>
+    </>
   )
 }
 
@@ -141,14 +309,14 @@ export function AdminStatCard({
   }
 
   return (
-    <div className="admin-surface rounded-[8px] border border-white bg-white p-6 shadow-lg shadow-slate-900/8">
-      <div className="flex items-center gap-4">
-        <div className={`flex h-14 w-14 items-center justify-center rounded-full ${colors[tone]}`}>
-          <Icon className="h-6 w-6" aria-hidden="true" />
+    <div className="admin-surface rounded-[8px] border border-white bg-white p-4 shadow-lg shadow-slate-900/8 sm:p-6">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-14 sm:w-14 ${colors[tone]}`}>
+          <Icon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-slate-500">{label}</p>
-          <p className="mt-1 text-3xl font-black text-slate-950">{value}</p>
+          <p className="text-xs font-semibold text-slate-500 sm:text-sm">{label}</p>
+          <p className="mt-0.5 text-2xl font-black text-slate-950 sm:mt-1 sm:text-3xl">{value}</p>
         </div>
       </div>
     </div>
@@ -197,9 +365,9 @@ export function SimpleStat({
               : 'text-slate-950'
 
   return (
-    <div className="admin-surface min-h-28 rounded-[8px] border border-white bg-white p-5 shadow-lg shadow-slate-900/8">
-      <p className="text-base font-semibold text-slate-500">{label}</p>
-      <p className={`mt-3 text-3xl font-black ${color}`}>{value}</p>
+    <div className="admin-surface rounded-[8px] border border-white bg-white p-4 shadow-lg shadow-slate-900/8 sm:min-h-28 sm:p-5">
+      <p className="text-sm font-semibold text-slate-500 sm:text-base">{label}</p>
+      <p className={`mt-2 text-2xl font-black sm:mt-3 sm:text-3xl ${color}`}>{value}</p>
     </div>
   )
 }
