@@ -1,12 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 
-import type { CourseSchedule, QrPayload, ScanRecord } from '../types/attendance'
-import {
-  isQrExpired,
-  loadActiveQrPayload,
-  saveActiveQrPayload,
-} from '../utils/qr'
+import type { CourseSchedule, QrPayload } from '../types/attendance'
+import { apiRequest } from '../utils/api'
 import {
   getAutoCloseSecondsLeft,
   getSessionAutoCloseAt,
@@ -14,66 +10,70 @@ import {
 
 type LecturerSessionPageProps = {
   course: CourseSchedule
+  sessionId: string
   scannerMessage: string
-  scanRecords: ScanRecord[]
   onBack: () => void
   onCloseSession: () => void
-  onLocalScan: () => LocalScanResult
-  onManualMark: (
-    student: ManualStudent,
-    status: 'Terverifikasi' | 'Terlambat' | 'Tidak Hadir',
-  ) => void
 }
 
-type ManualStudent = {
-  studentId: string
-  studentName: string
-  defaultTime: string
-}
-
-type LocalScanResult = {
+type ScanToast = {
   success: boolean
   title: string
   message: string
-  studentName?: string
-  studentId?: string
 }
 
-type BrowserWindow = typeof window & {
-  webkitAudioContext?: typeof AudioContext
+type StudentPresensi = {
+  mahasiswaId: string
+  nim: string
+  nama: string
+  statusKehadiran: string
+  waktuAbsen: string | null
 }
-
-const manualStudents: ManualStudent[] = [
-  { studentId: '535240187', studentName: "Naisya Yuen Ra'af", defaultTime: '08:02' },
-  { studentId: '535240156', studentName: 'Cathrine Sandrina', defaultTime: '08:03' },
-  { studentId: '535240145', studentName: 'Siti Nurhaliza', defaultTime: '08:01' },
-  { studentId: '535240132', studentName: 'Budi Santoso', defaultTime: '08:04' },
-  { studentId: '535240178', studentName: 'Dewi Lestari', defaultTime: '08:05' },
-  { studentId: '535240165', studentName: 'Eko Prasetyo', defaultTime: '08:17' },
-  { studentId: '535240189', studentName: 'Fitri Handayani', defaultTime: '08:03' },
-  { studentId: '535240123', studentName: 'Gani Wijaya', defaultTime: '08:02' },
-  { studentId: '535240198', studentName: 'Hendra Gunawan', defaultTime: '-' },
-  { studentId: '535240167', studentName: 'Indah Permata', defaultTime: '08:06' },
-]
 
 export function LecturerSessionPage({
   course,
-  scannerMessage,
-  scanRecords,
+  sessionId,
+  scannerMessage: initialScannerMessage,
   onBack,
   onCloseSession,
-  onLocalScan,
-  onManualMark,
 }: LecturerSessionPageProps) {
   const [now, setNow] = useState(() => new Date())
   const [mode, setMode] = useState<'qr' | 'manual'>('qr')
   const [isScannerActive, setIsScannerActive] = useState(false)
   const [cameraMessage, setCameraMessage] = useState('')
-  const [scanToast, setScanToast] = useState<LocalScanResult | null>(null)
+  const [scannerMessage, setScannerMessage] = useState(initialScannerMessage)
+  const [scanToast, setScanToast] = useState<ScanToast | null>(null)
+  const [students, setStudents] = useState<StudentPresensi[]>([])
+
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
   const lastScannedTokenRef = useRef('')
   const secondsLeft = getAutoCloseSecondsLeft(course, now)
   const autoCloseAt = getSessionAutoCloseAt(course, now)
+
+  const fetchPresensi = useCallback(async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = await apiRequest<any[]>(`/presensi/sesi/${sessionId}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mapped = data.map((item: any) => ({
+        mahasiswaId: item.mahasiswaId,
+        nim: item.mahasiswa?.nim || '',
+        nama: item.mahasiswa?.pengguna?.nama || '',
+        statusKehadiran: item.statusKehadiran,
+        waktuAbsen: item.waktuAbsen,
+      }))
+      setStudents(mapped)
+    } catch (err) {
+      console.error(err)
+    }
+  }, [sessionId])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchPresensi()
+    const timer = setInterval(() => { void fetchPresensi() }, 3000)
+    return () => clearInterval(timer)
+  }, [fetchPresensi])
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1_000)
@@ -94,32 +94,21 @@ export function LecturerSessionPage({
     }
   }, [])
 
-  const latestRecordByStudent = useMemo(() => {
-    const latestRecords = new Map<string, ScanRecord>()
-
-    scanRecords
-      .filter((record) => record.courseTitle === course.title)
-      .forEach((record) => {
-        if (!latestRecords.has(record.studentId)) {
-          latestRecords.set(record.studentId, record)
-        }
-      })
-
-    return latestRecords
-  }, [course.title, scanRecords])
-
-  const presentCount = [...latestRecordByStudent.values()].filter(
-    (record) => record.status === 'Terverifikasi',
+  const presentCount = students.filter(
+    (s) => s.statusKehadiran === 'HADIR',
   ).length
-  const lateCount = [...latestRecordByStudent.values()].filter(
-    (record) => record.status === 'Terlambat',
+  const lateCount = students.filter(
+    (s) => s.statusKehadiran === 'TERLAMBAT',
   ).length
-  const absentCount = manualStudents.length - presentCount - lateCount
+  const absentCount = students.filter(
+    (s) => s.statusKehadiran === 'TIDAK_HADIR' || s.statusKehadiran === 'BELUM_ADA_KETERANGAN',
+  ).length
   const attendedCount = presentCount + lateCount
-  const progress = Math.round((attendedCount / manualStudents.length) * 100)
+  const progress = students.length ? Math.round((attendedCount / students.length) * 100) : 0
 
-  const playScanFeedback = useCallback(() => {
-    const browserWindow = window as BrowserWindow
+  const playScanFeedback = useCallback((success: boolean) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const browserWindow = window as any
     const AudioContextConstructor =
       window.AudioContext ?? browserWindow.webkitAudioContext
 
@@ -129,8 +118,8 @@ export function LecturerSessionPage({
     const oscillator = audioContext.createOscillator()
     const gain = audioContext.createGain()
 
-    oscillator.type = 'sine'
-    oscillator.frequency.value = 880
+    oscillator.type = success ? 'sine' : 'square'
+    oscillator.frequency.value = success ? 880 : 300
     gain.gain.setValueAtTime(0.001, audioContext.currentTime)
     gain.gain.exponentialRampToValueAtTime(0.22, audioContext.currentTime + 0.02)
     gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.16)
@@ -140,79 +129,57 @@ export function LecturerSessionPage({
     oscillator.stop(audioContext.currentTime + 0.18)
   }, [])
 
-  // Removed readPayloadFromCamera
-
-  const commitScanResult = useCallback(
-    (result: LocalScanResult) => {
-      setScanToast(result)
-      setCameraMessage(result.message)
-
-      if (result.success && result.title !== 'Presensi sudah tercatat') {
-        playScanFeedback()
-      }
-    },
-    [playScanFeedback],
-  )
-
   const attemptCameraScan = useCallback(
-    async (decodedText?: string, forceMessage = false) => {
-      let payload: QrPayload | null = null;
-      if (decodedText) {
-        try {
-          const parsed = JSON.parse(decodedText)
-          if (parsed.type === 'SCANIN_ATTENDANCE') {
-            payload = parsed as QrPayload
-            saveActiveQrPayload(payload)
-          } else {
-            setCameraMessage('QR terbaca, tapi format tidak dikenali.')
-            return
-          }
-        } catch {
-          setCameraMessage('QR terbaca (bukan JSON): ' + decodedText.slice(0, 30))
+    async (decodedText?: string) => {
+      if (!decodedText) return
+      let payload: QrPayload | null = null
+      try {
+        const parsed = JSON.parse(decodedText)
+        if (parsed.type === 'SCANIN_ATTENDANCE' || parsed.type === 'QR_PRESENSI') {
+          payload = parsed as QrPayload
+        } else {
+          setCameraMessage('QR terbaca, tapi format tidak dikenali.')
           return
         }
-      } else {
-        payload = loadActiveQrPayload()
-      }
-
-      if (!payload) {
-        if (forceMessage) {
-          setCameraMessage('Kamera aktif. Arahkan QR mahasiswa ke area scanner.')
-        }
-        return
-      }
-
-      if (payload.courseId !== course.id) {
-        if (forceMessage) {
-          setCameraMessage('QR terbaca, tetapi bukan untuk sesi kelas ini.')
-        }
+      } catch {
+        setCameraMessage('QR terbaca (bukan JSON): ' + decodedText.slice(0, 30))
         return
       }
 
       if (payload.token === lastScannedTokenRef.current) {
-        if (forceMessage) {
-          setCameraMessage('QR ini sudah terbaca. Tunggu token mahasiswa berubah.')
-        }
-        return
-      }
-
-      if (isQrExpired(payload)) {
-        if (forceMessage) {
-          setCameraMessage('QR terbaca tetapi sudah kedaluwarsa.')
-        }
-        return
+        return // debounce
       }
 
       lastScannedTokenRef.current = payload.token
-      commitScanResult(onLocalScan())
+
+      try {
+        const res = await apiRequest<{ pesan: string, status: string }>('/presensi/scan', {
+          method: 'POST',
+          body: JSON.stringify({ sesiId: sessionId, qrToken: payload.token }),
+        })
+        
+        playScanFeedback(true)
+        setScanToast({
+          success: true,
+          title: 'Presensi berhasil',
+          message: res.pesan,
+        })
+        fetchPresensi()
+      } catch (err) {
+        const error = err as Error
+        playScanFeedback(false)
+        setScanToast({
+          success: false,
+          title: 'QR tidak valid',
+          message: error.message || 'Terjadi kesalahan',
+        })
+      }
     },
-    [commitScanResult, course.id, onLocalScan],
+    [sessionId, fetchPresensi, playScanFeedback],
   )
 
-  // Interval scan no longer needed as Html5Qrcode calls us directly
-
   const handleStartCamera = async () => {
-    if (html5QrCodeRef.current?.isScanning) return;
+    if (html5QrCodeRef.current?.isScanning) return
 
     try {
       const html5QrCode = new Html5Qrcode("qr-reader")
@@ -227,14 +194,28 @@ export function LecturerSessionPage({
       )
       setIsScannerActive(true)
       setCameraMessage('Kamera aktif. Scanner akan membaca QR secara otomatis.')
-    } catch (err: any) {
-      console.error(err)
-      setCameraMessage('Gagal menyalakan kamera: ' + (err?.message || 'Izin ditolak.'))
+    } catch (err) {
+      const error = err as Error
+      console.error(error)
+      setCameraMessage('Gagal menyalakan kamera: ' + (error?.message || 'Izin ditolak.'))
     }
   }
 
-  const handleCameraScan = () => {
-    void attemptCameraScan(undefined, true)
+  const handleManualMark = async (student: StudentPresensi, status: string) => {
+    try {
+      await apiRequest('/presensi/manual', {
+        method: 'POST',
+        body: JSON.stringify({
+          sesiId: sessionId,
+          daftarHadir: [{ mahasiswaId: student.nim, status }],
+        })
+      });
+      void fetchPresensi();
+      setScannerMessage(`Mahasiswa ${student.nama} ditandai ${status} manual.`);
+    } catch (err) {
+      const error = err as Error
+      setScannerMessage(`Gagal mark manual: ${error.message}`);
+    }
   }
 
   if (mode === 'manual') {
@@ -245,7 +226,7 @@ export function LecturerSessionPage({
             <div className="flex items-center gap-4">
               <PeopleIcon />
               <div>
-            <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">Mode Manual</h1>
+                <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">Mode Manual</h1>
                 <p className="mt-1 text-sm font-bold text-slate-500">
                   {course.title} - {course.room}
                 </p>
@@ -254,30 +235,29 @@ export function LecturerSessionPage({
             <button
               type="button"
               onClick={() => setMode('qr')}
-            className="flex h-12 w-full items-center justify-center rounded-[8px] border border-[#5c3386] px-5 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white sm:w-auto"
+              className="flex h-12 w-full items-center justify-center rounded-[8px] border border-[#5c3386] px-5 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white sm:w-auto"
             >
               Kembali ke Mode QR
             </button>
           </div>
 
           <div className="mt-8 grid gap-3 md:hidden">
-            {manualStudents.map((student) => {
-              const record = latestRecordByStudent.get(student.studentId)
-              const status = record?.status ?? 'Tidak Hadir'
-              const time = record?.scannedAt.slice(0, 5) ?? student.defaultTime
+            {students.map((student) => {
+              const status = student.statusKehadiran
+              const time = student.waktuAbsen ? new Date(student.waktuAbsen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'
 
               return (
                 <article
-                  key={student.studentId}
+                  key={student.mahasiswaId}
                   className="rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-base font-black text-slate-950">
-                        {student.studentName}
+                        {student.nama}
                       </p>
                       <p className="mt-1 text-sm font-semibold text-slate-500">
-                        {student.studentId} - {time}
+                        {student.nim} - {time}
                       </p>
                     </div>
                     <SessionStatusPill status={status} />
@@ -285,21 +265,21 @@ export function LecturerSessionPage({
                   <div className="mt-4 grid grid-cols-3 gap-2">
                     <button
                       type="button"
-                      onClick={() => onManualMark(student, 'Terverifikasi')}
+                      onClick={() => handleManualMark(student, 'HADIR')}
                       className="h-10 rounded-[8px] bg-emerald-600 px-3 text-sm font-black text-white transition hover:bg-emerald-700"
                     >
                       Hadir
                     </button>
                     <button
                       type="button"
-                      onClick={() => onManualMark(student, 'Terlambat')}
+                      onClick={() => handleManualMark(student, 'TERLAMBAT')}
                       className="h-10 rounded-[8px] bg-[#c28a08] px-3 text-sm font-black text-white transition hover:bg-[#a87607]"
                     >
                       Telat
                     </button>
                     <button
                       type="button"
-                      onClick={() => onManualMark(student, 'Tidak Hadir')}
+                      onClick={() => handleManualMark(student, 'TIDAK_HADIR')}
                       className="h-10 rounded-[8px] border border-[#7d2228] px-3 text-sm font-black text-[#7d2228] transition hover:bg-[#7d2228] hover:text-white"
                     >
                       Alpa
@@ -332,18 +312,17 @@ export function LecturerSessionPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {manualStudents.map((student) => {
-                  const record = latestRecordByStudent.get(student.studentId)
-                  const status = record?.status ?? 'Tidak Hadir'
-                  const time = record?.scannedAt.slice(0, 5) ?? student.defaultTime
+                {students.map((student) => {
+                  const status = student.statusKehadiran
+                  const time = student.waktuAbsen ? new Date(student.waktuAbsen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'
 
                   return (
-                    <tr key={student.studentId} className="even:bg-slate-50">
+                    <tr key={student.mahasiswaId} className="even:bg-slate-50">
                       <td className="px-4 py-4 text-sm font-semibold text-slate-900">
-                        {student.studentId}
+                        {student.nim}
                       </td>
                       <td className="px-4 py-4 text-sm font-semibold text-slate-900">
-                        {student.studentName}
+                        {student.nama}
                       </td>
                       <td className="px-4 py-4 text-sm font-semibold text-slate-600">
                         {time}
@@ -355,21 +334,21 @@ export function LecturerSessionPage({
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            onClick={() => onManualMark(student, 'Terverifikasi')}
+                            onClick={() => handleManualMark(student, 'HADIR')}
                             className="h-9 rounded-[8px] bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700"
                           >
                             Hadir
                           </button>
                           <button
                             type="button"
-                            onClick={() => onManualMark(student, 'Terlambat')}
+                            onClick={() => handleManualMark(student, 'TERLAMBAT')}
                             className="h-9 rounded-[8px] bg-[#c28a08] px-4 text-sm font-black text-white transition hover:bg-[#a87607]"
                           >
                             Telat
                           </button>
                           <button
                             type="button"
-                            onClick={() => onManualMark(student, 'Tidak Hadir')}
+                            onClick={() => handleManualMark(student, 'TIDAK_HADIR')}
                             className="h-9 rounded-[8px] border border-[#7d2228] px-4 text-sm font-black text-[#7d2228] transition hover:bg-[#7d2228] hover:text-white"
                           >
                             Alpa
@@ -490,7 +469,7 @@ export function LecturerSessionPage({
             <div className="mb-2 flex items-center justify-between gap-3 text-sm font-black text-slate-700">
               <span>Progress Kehadiran</span>
               <span>
-                {attendedCount}/{manualStudents.length} Mahasiswa
+                {attendedCount}/{students.length} Mahasiswa
               </span>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-slate-200">
@@ -501,20 +480,13 @@ export function LecturerSessionPage({
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <button
               type="button"
               onClick={handleStartCamera}
               className="flex h-12 items-center justify-center rounded-[8px] border border-[#5c3386] bg-white px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
             >
               Aktifkan Kamera
-            </button>
-            <button
-              type="button"
-              onClick={handleCameraScan}
-              className="flex h-12 items-center justify-center rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]"
-            >
-              Scan Ulang Sekarang
             </button>
             <button
               type="button"
@@ -567,17 +539,17 @@ function SessionStatCard({
   )
 }
 
-function SessionStatusPill({ status }: { status: ScanRecord['status'] }) {
+function SessionStatusPill({ status }: { status: string }) {
   const tone =
-    status === 'Terverifikasi'
+    status === 'HADIR'
       ? 'bg-emerald-100 text-emerald-700'
-      : status === 'Terlambat'
+      : status === 'TERLAMBAT'
         ? 'bg-amber-100 text-amber-700'
-        : status === 'Tidak Hadir'
+        : status === 'TIDAK_HADIR'
           ? 'bg-[#7d2228]/10 text-[#7d2228]'
           : 'bg-slate-100 text-slate-500'
 
-  const label = status === 'Terverifikasi' ? 'Hadir' : status
+  const label = status === 'BELUM_ADA_KETERANGAN' ? 'Belum Ada Keterangan' : status
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-black ${tone}`}>

@@ -21,6 +21,7 @@ import {
   saveAttendanceNotification,
 } from '../utils/notifications'
 import { isQrExpired, loadActiveQrPayload } from '../utils/qr'
+import { apiRequest } from '../utils/api'
 import {
   getRuntimeLabel,
   getRuntimeStatus,
@@ -56,6 +57,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
   const [now, setNow] = useState(() => new Date())
   const [schedules, setSchedules] = useState<CourseSchedule[]>([])
   const [sessionCourse, setSessionCourse] = useState<CourseSchedule | null>(null)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [scanRecords, setScanRecords] = useState<ScanRecord[]>([])
   const [scannerMessage, setScannerMessage] = useState(
     'Buka sesi kelas untuk menampilkan halaman scanner QR.',
@@ -106,7 +108,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     [scanRecords],
   )
 
-  const handleOpenCourse = (course: CourseSchedule) => {
+  const handleOpenCourse = async (course: CourseSchedule) => {
     if (!isSessionWindowOpen(course, now)) {
       setScannerMessage(
         'Sesi hanya bisa dibuka saat jam kelas berlangsung sampai 30 menit setelah kelas selesai.',
@@ -114,8 +116,17 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
       return
     }
 
-    setSessionCourse(course)
-    setScannerMessage(`Sesi ${course.title} aktif. Scanner siap membaca QR.`)
+    try {
+      const sesi = await apiRequest<{ id: string }>('/sesi', {
+        method: 'POST',
+        body: JSON.stringify({ jadwalId: course.id }),
+      });
+      setActiveSessionId(sesi.id);
+      setSessionCourse(course);
+      setScannerMessage(`Sesi ${course.title} aktif. Scanner siap membaca QR.`);
+    } catch (err: any) {
+      setScannerMessage('Gagal membuka sesi: ' + (err.message || 'Error dari server.'));
+    }
   }
 
   const handleLocalScan = (): LocalScanResult => {
@@ -254,9 +265,17 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     )
   }
 
-  const handleCloseSession = () => {
+  const handleCloseSession = async () => {
+    if (activeSessionId) {
+      try {
+        await apiRequest(`/sesi/${activeSessionId}/tutup`, { method: 'PATCH' });
+      } catch (err) {
+        console.error(err);
+      }
+    }
     setScannerMessage('Sesi ditutup. Kamu bisa buka sesi lain sesuai jadwal.')
     setSessionCourse(null)
+    setActiveSessionId(null)
   }
 
   if (activeMetric) {
@@ -272,6 +291,7 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     return (
       <LecturerSessionPage
         course={sessionCourse}
+        sessionId={activeSessionId!}
         scannerMessage={scannerMessage}
         scanRecords={scanRecords}
         onBack={() => setSessionCourse(null)}

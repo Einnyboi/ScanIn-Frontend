@@ -30,6 +30,7 @@ export function LoginPage() {
     const token = params.get('token')
     
     if (window.location.pathname === '/reset-password' && token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setResetToken(token)
       setAuthView('reset')
     }

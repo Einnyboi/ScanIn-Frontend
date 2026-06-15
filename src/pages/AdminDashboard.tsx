@@ -474,6 +474,8 @@ export default function AdminDashboard({
               analytics={analytics}
               onGenerateReport={handleGenerateReport}
               reports={reports}
+              users={users}
+              schedules={schedules}
             />
           ) : null}
           {activeView === 'tickets' ? (
