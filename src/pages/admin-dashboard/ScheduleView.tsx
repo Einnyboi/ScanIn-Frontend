@@ -22,6 +22,7 @@ export function ScheduleView({ users }: ScheduleViewProps) {
   const [createCourseMode, setCreateCourseMode] = useState(false)
   const [createClassTarget, setCreateClassTarget] = useState<string | null>(null)
   const [createSessionTarget, setCreateSessionTarget] = useState<string | null>(null)
+  const [editSessionTarget, setEditSessionTarget] = useState<string | null>(null)
 
   // Form states
   const [courseForm, setCourseForm] = useState({ kodeMatkul: '', namaMatkul: '', sks: 3 })
@@ -92,6 +93,26 @@ export function ScheduleView({ users }: ScheduleViewProps) {
     }
   }
 
+  const handleUpdateSession = async (e: React.FormEvent, idJadwal: string) => {
+    e.preventDefault()
+    try {
+      await apiRequest(`/schedules/${idJadwal}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          day: sessionForm.hari,
+          time: `${sessionForm.jamMulai} - ${sessionForm.jamSelesai}`,
+          room: sessionForm.room,
+          lecturer: sessionForm.lecturer
+        })
+      })
+      setEditSessionTarget(null)
+      setSessionForm({ hari: 'Senin', jamMulai: '08:00', jamSelesai: '10:00', room: '', lecturer: '' })
+      loadHierarchy()
+    } catch {
+      alert('Gagal mengupdate jadwal/sesi')
+    }
+  }
+
   const lecturerOptions = users.filter(u => u.role === 'Pengajar').map(u => u.name)
 
   if (loading) return <div className="p-8 text-center text-slate-500 font-bold">Memuat hierarki jadwal...</div>
@@ -150,7 +171,11 @@ export function ScheduleView({ users }: ScheduleViewProps) {
                       </div>
                       <div className="flex gap-2 mt-3 sm:mt-0">
                         <button
-                          onClick={() => setCreateSessionTarget(cls.idKelas)}
+                          onClick={() => {
+                            setCreateSessionTarget(cls.idKelas)
+                            setEditSessionTarget(null)
+                            setSessionForm({ hari: 'Senin', jamMulai: '08:00', jamSelesai: '10:00', room: '', lecturer: '' })
+                          }}
                           className="flex items-center gap-1 rounded bg-[#5c3386]/10 px-3 py-1.5 text-xs font-bold text-[#5c3386] hover:bg-[#5c3386]/20"
                         >
                           <Plus className="h-3 w-3" /> Tambah Jadwal
@@ -182,11 +207,36 @@ export function ScheduleView({ users }: ScheduleViewProps) {
                       <p className="text-sm font-semibold text-slate-400 italic">Belum ada sesi/jadwal untuk kelas ini.</p>
                     ) : (
                       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        {cls.jadwal.map(j => (
-                          <div key={j.idJadwal} className="rounded border border-slate-100 bg-white p-3 shadow-sm shadow-slate-200/50">
+                        {cls.jadwal.map(j => editSessionTarget === j.idJadwal ? (
+                          <form key={`edit-${j.idJadwal}`} onSubmit={(e) => handleUpdateSession(e, j.id)} className="rounded bg-slate-50 p-3 border border-[#5c3386] shadow-sm grid gap-3 col-span-full">
+                            <h5 className="font-bold text-[#5c3386] text-sm mb-1">Edit Jadwal</h5>
+                            <div className="grid gap-3 sm:grid-cols-4">
+                              <Select label="Hari" value={sessionForm.hari} options={['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']} onChange={v => setSessionForm({...sessionForm, hari: v})} />
+                              <Input label="Ruangan" value={sessionForm.room} onChange={v => setSessionForm({...sessionForm, room: v})} placeholder="Lab Komputer" />
+                              <TimeInput label="Jam Mulai" value={sessionForm.jamMulai} onChange={v => setSessionForm({...sessionForm, jamMulai: v})} />
+                              <TimeInput label="Jam Selesai" value={sessionForm.jamSelesai} onChange={v => setSessionForm({...sessionForm, jamSelesai: v})} />
+                              <Select label="Pengajar" value={sessionForm.lecturer} options={lecturerOptions} placeholder="Pilih Pengajar" className="sm:col-span-2" onChange={v => setSessionForm({...sessionForm, lecturer: v})} />
+                              <div className="sm:col-span-2 flex items-end gap-2 h-[52px]">
+                                <button type="submit" className="bg-[#5c3386] text-white px-3 py-1.5 rounded text-sm font-bold w-full h-full">Simpan</button>
+                                <button type="button" onClick={() => setEditSessionTarget(null)} className="border border-slate-300 px-3 py-1.5 rounded text-sm font-bold w-full h-full">Batal</button>
+                              </div>
+                            </div>
+                          </form>
+                        ) : (
+                          <div key={j.idJadwal} className="relative rounded border border-slate-100 bg-white p-3 shadow-sm shadow-slate-200/50 group">
                             <p className="font-bold text-slate-800">{j.hari}, {j.jamMulai} - {j.jamSelesai}</p>
                             <p className="text-xs font-semibold text-slate-500 mt-1">Ruang: {j.ruangan}</p>
                             <p className="text-xs font-semibold text-[#5c3386] mt-1">Dosen: {j.pengajar || 'Belum diatur'}</p>
+                            <button
+                              onClick={() => {
+                                setEditSessionTarget(j.idJadwal)
+                                setCreateSessionTarget(null)
+                                setSessionForm({ hari: j.hari, jamMulai: j.jamMulai, jamSelesai: j.jamSelesai, room: j.ruangan, lecturer: j.pengajar })
+                              }}
+                              className="absolute top-3 right-3 text-xs font-bold text-slate-400 hover:text-[#5c3386] opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              Edit
+                            </button>
                           </div>
                         ))}
                       </div>

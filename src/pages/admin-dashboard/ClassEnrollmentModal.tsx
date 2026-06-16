@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Search, Check, Users } from 'lucide-react'
 import { apiRequest } from '../../utils/api'
 
@@ -27,6 +27,19 @@ export function ClassEnrollmentModal({ kelasId, namaKelas, onClose, onSuccess }:
   // Bulk state
   const [angkatan, setAngkatan] = useState('2024')
   const [tipeKelas, setTipeKelas] = useState('')
+  const [kelasRombel, setKelasRombel] = useState('')
+  const [availableRombels, setAvailableRombels] = useState<string[]>([])
+
+  useEffect(() => {
+    if (mode === 'bulk') {
+      apiRequest<string[]>(`/enrollments/available-rombels?angkatan=${angkatan}`)
+        .then(res => {
+          setAvailableRombels(res || [])
+          setKelasRombel('') // reset when angkatan changes
+        })
+        .catch(() => setAvailableRombels([]))
+    }
+  }, [angkatan, mode])
 
   // Manual state
   const [query, setQuery] = useState('')
@@ -40,7 +53,7 @@ export function ClassEnrollmentModal({ kelasId, namaKelas, onClose, onSuccess }:
     try {
       const res = await apiRequest<{ count: number; message: string }>(`/enrollments/classes/${kelasId}/enroll/bulk`, {
         method: 'POST',
-        body: JSON.stringify({ angkatan, tipeKelas: tipeKelas || undefined }),
+        body: JSON.stringify({ angkatan, tipeKelas: tipeKelas || undefined, kelasRombel: kelasRombel || undefined }),
       })
       setNotice(res?.message || 'Berhasil')
       setTimeout(onSuccess, 1500)
@@ -154,6 +167,19 @@ export function ClassEnrollmentModal({ kelasId, namaKelas, onClose, onSuccess }:
                   <option value="">Semua Tipe</option>
                   <option value="PAGI">Pagi</option>
                   <option value="SORE">Sore</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Kelas Rombel (Opsional)</label>
+                <select
+                  value={kelasRombel}
+                  onChange={e => setKelasRombel(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-4 py-3 font-semibold focus:border-[#5c3386] focus:outline-none"
+                >
+                  <option value="">Semua Rombel</option>
+                  {availableRombels.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
                 </select>
               </div>
               <button
