@@ -1,264 +1,232 @@
-import { useState, type FormEvent } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, ChevronDown, ChevronRight, Users } from 'lucide-react'
 import { apiRequest } from '../../utils/api'
-
-import type { CourseSchedule } from '../../types/attendance'
+import type { CourseHierarchy } from '../../types/attendance'
 import type { AdminUser } from '../../utils/adminUsers'
-import {
-  createEmptySchedule,
-  createScheduleId,
-  getLecturerOptions,
-  splitScheduleTime,
-} from '../../utils/adminDashboard'
-
-import {
-  ActionButtons,
-  AdminCard,
-  DeletePinModal,
-  EmptyState,
-  Input,
-  Select,
-  SimpleStat,
-  TimeInput,
-  type DeleteConfirmation,
-} from './shared'
+import { AdminCard, Input, Select, TimeInput } from './shared'
+import { ClassEnrollmentModal } from './ClassEnrollmentModal'
 
 export type ScheduleViewProps = {
-  onSchedulesChange: (schedules: CourseSchedule[], sync?: boolean) => void
-  schedules: CourseSchedule[]
   users: AdminUser[]
+  schedules?: any
+  onSchedulesChange?: any
 }
 
-export function ScheduleView({ onSchedulesChange, schedules, users }: ScheduleViewProps) {
-  const [query, setQuery] = useState('')
-  const [pageMode, setPageMode] = useState<'list' | 'create' | 'edit'>('list')
-  const [editingId, setEditingId] = useState('')
-  const [formData, setFormData] = useState<CourseSchedule>(createEmptySchedule())
-  const [notice, setNotice] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState<DeleteConfirmation | null>(null)
-  const isEditing = Boolean(editingId)
-  const scheduleTime = splitScheduleTime(formData.time)
-  const lecturerOptions = getLecturerOptions(users, schedules, formData.lecturer)
-  const filteredSchedules = schedules.filter((schedule) => {
-    const lowerQuery = query.trim().toLowerCase()
+export function ScheduleView({ users }: ScheduleViewProps) {
+  const [courses, setCourses] = useState<CourseHierarchy[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expandedCourse, setExpandedCourse] = useState<string | null>(null)
+  
+  // Modals state
+  const [enrollmentClass, setEnrollmentClass] = useState<{ id: string; name: string } | null>(null)
+  const [createCourseMode, setCreateCourseMode] = useState(false)
+  const [createClassTarget, setCreateClassTarget] = useState<string | null>(null)
+  const [createSessionTarget, setCreateSessionTarget] = useState<string | null>(null)
 
-    if (!lowerQuery) return true
+  // Form states
+  const [courseForm, setCourseForm] = useState({ kodeMatkul: '', namaMatkul: '', sks: 3 })
+  const [classForm, setClassForm] = useState({ namaKelas: '' })
+  const [sessionForm, setSessionForm] = useState({ hari: 'Senin', jamMulai: '08:00', jamSelesai: '10:00', room: '', lecturer: '' })
 
-    return [schedule.day ?? '', schedule.title, schedule.time, schedule.room, schedule.lecturer, schedule.status, String(schedule.students)].some((value) => value.toLowerCase().includes(lowerQuery))
-  })
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!formData.title.trim() || !formData.time.trim() || !formData.room.trim()) {
-      setNotice('Mata kuliah, jam, dan ruangan wajib diisi.')
-      return
-    }
-
-    const normalizedSchedule = {
-      ...formData,
-      title: formData.title.trim(),
-      time: formData.time.trim(),
-      room: formData.room.trim(),
-      students: Number(formData.students) || 0,
-    }
-
+  const loadHierarchy = async () => {
     try {
-      if (isEditing) {
-        const response = await apiRequest<Partial<CourseSchedule>>(
-          `/schedules/${editingId}`, 
-          {
-            method: 'PATCH',
-            body: JSON.stringify(normalizedSchedule),
-          }
-        )
+      const data = await apiRequest<CourseHierarchy[]>('/schedules/hierarchy')
+      if (data) setCourses(data)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-        const updatedSchedule: CourseSchedule = {
-          ...normalizedSchedule,
-          ...(response || {}),
-          id: editingId, 
-        }
+  useEffect(() => {
+    loadHierarchy()
+  }, [])
 
-        const nextSchedules = schedules.map((item) =>
-          item.id === editingId ? updatedSchedule : item
-        )
-        await onSchedulesChange(nextSchedules, false) 
-
-      } else {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { id: _id, ...postPayload } = normalizedSchedule
-
-        const response = await apiRequest<Partial<CourseSchedule>>('/schedules', {
-          method: 'POST',
-          body: JSON.stringify(postPayload),
-        })
-
-        const createdSchedule: CourseSchedule = {
-          ...postPayload,
-          ...(response || {}),
-          id: response?.id || createScheduleId(normalizedSchedule.title),
-        }
-
-        const nextSchedules = [createdSchedule, ...schedules]
-        onSchedulesChange(nextSchedules, false)
-      }
-
-      setFormData(createEmptySchedule())
-      setEditingId('')
-      setNotice(
-        isEditing
-          ? 'Jadwal berhasil diperbarui.'
-          : 'Jadwal baru berhasil ditambahkan.'
-      )
-      setPageMode('list')
-
+  const handleCreateCourse = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await apiRequest('/schedules/courses', {
+        method: 'POST',
+        body: JSON.stringify(courseForm)
+      })
+      setCreateCourseMode(false)
+      setCourseForm({ kodeMatkul: '', namaMatkul: '', sks: 3 })
+      loadHierarchy()
     } catch {
-      setNotice('Gagal menyimpan jadwal ke backend. Data belum diubah.')
+      alert('Gagal membuat mata kuliah')
     }
   }
-  const handleCreate = () => {
-    setFormData(createEmptySchedule())
-    setEditingId('')
-    setNotice('')
-    setPageMode('create')
-  }
 
-  const handleEdit = (schedule: CourseSchedule) => {
-    setFormData(schedule)
-    setEditingId(schedule.id)
-    setNotice('')
-    setPageMode('edit')
-  }
-
-  const handleDeleteRequest = (schedule: CourseSchedule) => {
-    setDeleteTarget({
-      title: 'Konfirmasi Hapus Jadwal',
-      description: `Jadwal ${schedule.title} (${schedule.time}, ${schedule.room}) akan dihapus dari mahasiswa dan pengajar. Masukkan PIN admin 4 angka untuk melanjutkan.`,
-      confirmLabel: 'Hapus Jadwal',
-      onConfirm: async () => {
-        try {
-          await apiRequest(`/schedules/${schedule.id}`, { method: 'DELETE' })
-          onSchedulesChange(schedules.filter((item) => item.id !== schedule.id), false)
-          if (editingId === schedule.id) {
-            setFormData(createEmptySchedule())
-            setEditingId('')
-            setPageMode('list')
-          }
-          setNotice('Jadwal berhasil dihapus setelah verifikasi PIN.')
-        } catch {
-          setNotice('Gagal menghapus jadwal dari backend.')
-        }
-      },
-    })
-  }
-
-  const handleScheduleTimeChange = (field: 'start' | 'end', value: string) => {
-    const nextTime = {
-      ...splitScheduleTime(formData.time),
-      [field]: value,
+  const handleCreateClass = async (e: React.FormEvent, idMatkul: string) => {
+    e.preventDefault()
+    try {
+      await apiRequest('/schedules/classes', {
+        method: 'POST',
+        body: JSON.stringify({ namaKelas: classForm.namaKelas, idMatkul })
+      })
+      setCreateClassTarget(null)
+      setClassForm({ namaKelas: '' })
+      loadHierarchy()
+    } catch {
+      alert('Gagal membuat kelas')
     }
-
-    setFormData({
-      ...formData,
-      time: `${nextTime.start} - ${nextTime.end}`,
-    })
   }
 
-  if (pageMode !== 'list') {
-    return (
-      <div className="rounded-[8px] bg-slate-950 p-3 shadow-2xl shadow-slate-950/20 sm:p-6 lg:p-10">
-        <section className="admin-surface mx-auto max-w-6xl rounded-[8px] bg-white px-5 py-7 shadow-2xl shadow-slate-950/20 sm:px-8 lg:px-12 lg:py-10">
-          <h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-            {isEditing ? 'Edit Jadwal' : 'Tambah Jadwal Baru'}
-          </h2>
-          <p className="mt-2 text-sm font-semibold text-slate-500">
-            {isEditing
-              ? 'Perbarui jadwal kuliah dengan format yang jelas untuk mahasiswa dan pengajar.'
-              : 'Lengkapi jadwal baru. Data akan langsung tersinkron ke dashboard mahasiswa dan pengajar.'}
-          </p>
-
-          <form className="mt-8 grid gap-5 lg:grid-cols-2" onSubmit={handleSubmit}>
-            <Input label="Mata Kuliah" value={formData.title} className="lg:col-span-1" inputClassName="h-16 text-base sm:text-lg" onChange={(value) => setFormData({ ...formData, title: value })} />
-            <Select label="Pengajar" value={formData.lecturer} options={lecturerOptions} placeholder="Pilih Pengajar" className="lg:col-span-1" selectClassName="h-16 text-base sm:text-lg" onChange={(value) => setFormData({ ...formData, lecturer: value })} />
-
-            <Select label="Hari" value={formData.day ?? ''} options={['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']} className="lg:col-span-1 xl:col-span-1" selectClassName="h-16 text-base sm:text-lg" onChange={(value) => setFormData({ ...formData, day: value })} />
-            <div className="grid gap-5 sm:grid-cols-2 lg:col-span-1">
-              <TimeInput label="Jam Mulai" value={scheduleTime.start} onChange={(value) => handleScheduleTimeChange('start', value)} />
-              <TimeInput label="Jam Selesai" value={scheduleTime.end} onChange={(value) => handleScheduleTimeChange('end', value)} />
-            </div>
-
-            <Input label="Ruangan" value={formData.room} placeholder="Contoh: B-204" className="lg:col-span-2" inputClassName="h-16 text-base sm:text-lg" onChange={(value) => setFormData({ ...formData, room: value })} />
-
-            <Select label="Status Sesi" value={formData.status} options={['active', 'upcoming', 'closed']} className="lg:col-span-2" selectClassName="h-16 text-base sm:text-lg" onChange={(value) => setFormData({ ...formData, status: value as CourseSchedule['status'] })} />
-
-            {notice ? <p className="rounded-[8px] bg-[#5c3386]/8 px-4 py-3 text-sm font-bold text-[#5c3386] lg:col-span-2">{notice}</p> : null}
-
-            <div className="mt-2 grid gap-4 sm:grid-cols-2 lg:col-span-2">
-              <button type="button" onClick={() => {
-                setPageMode('list')
-                setFormData(createEmptySchedule())
-                setEditingId('')
-                setNotice('')
-              }} className="h-14 rounded-[8px] border border-slate-300 px-5 text-base font-black text-slate-700 transition hover:border-[#5c3386] hover:text-[#5c3386]">
-                Batal
-              </button>
-              <button type="submit" className="h-14 rounded-[8px] bg-[#5c3386] px-5 text-base font-black text-white shadow-lg shadow-[#5c3386]/20 transition hover:bg-[#4f2b73]">
-                {isEditing ? 'Simpan Perubahan' : 'Simpan'}
-              </button>
-            </div>
-          </form>
-        </section>
-      </div>
-    )
+  const handleCreateSession = async (e: React.FormEvent, idKelas: string) => {
+    e.preventDefault()
+    try {
+      await apiRequest('/schedules/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          kelasId: idKelas,
+          hari: sessionForm.hari,
+          time: `${sessionForm.jamMulai} - ${sessionForm.jamSelesai}`,
+          room: sessionForm.room,
+          lecturer: sessionForm.lecturer
+        })
+      })
+      setCreateSessionTarget(null)
+      setSessionForm({ hari: 'Senin', jamMulai: '08:00', jamSelesai: '10:00', room: '', lecturer: '' })
+      loadHierarchy()
+    } catch {
+      alert('Gagal membuat jadwal/sesi')
+    }
   }
+
+  const lecturerOptions = users.filter(u => u.role === 'Pengajar').map(u => u.name)
+
+  if (loading) return <div className="p-8 text-center text-slate-500 font-bold">Memuat hierarki jadwal...</div>
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-4">
-        <SimpleStat label="Total Jadwal" value={schedules.length} />
-        <SimpleStat label="Mata Kuliah" tone="purple" value={new Set(schedules.map((item) => item.title)).size} />
-        <SimpleStat label="Ruangan Aktif" tone="green" value={new Set(schedules.map((item) => item.room)).size} />
-        <SimpleStat label="Pengajar Aktif" tone="blue" value={new Set(schedules.map((item) => item.lecturer)).size} />
-      </section>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-black text-slate-900">Mata Kuliah & Jadwal</h2>
+        <button
+          onClick={() => setCreateCourseMode(true)}
+          className="flex items-center gap-2 rounded-[8px] bg-[#5c3386] px-4 py-2 text-sm font-black text-white hover:bg-[#4f2b73]"
+        >
+          <Plus className="h-4 w-4" /> Tambah Mata Kuliah
+        </button>
+      </div>
 
-      <AdminCard>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative max-w-xl flex-1">
-            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari jadwal, jam, dosen, atau ruangan..."
-              className="h-12 w-full rounded-[8px] border border-slate-200 pl-12 pr-4 font-semibold outline-none focus:border-[#5c3386]"
-            />
-          </div>
-          <button type="button" onClick={handleCreate} className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]">
-            <Plus className="h-4 w-4" />
-            Tambah Jadwal
-          </button>
-        </div>
-        {notice ? <p className="mt-4 rounded-[8px] bg-[#5c3386]/8 px-4 py-3 text-sm font-bold text-[#5c3386]">{notice}</p> : null}
-        <div className="mt-5 grid gap-4">
-          {filteredSchedules.map((schedule, index) => (
-            <article key={schedule.id || `fallback-${index}`} className="rounded-[8px] border border-slate-200 p-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-lg font-black text-slate-950">{schedule.title}</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-500">
-                    {schedule.day ?? 'Hari'} - {schedule.time} - {schedule.room} - {schedule.lecturer}
-                  </p>
-                  <p className="mt-2 text-sm font-black text-[#5c3386]">
-                    {schedule.students} mahasiswa - {schedule.status}
-                  </p>
-                </div>
-                <ActionButtons onDelete={() => handleDeleteRequest(schedule)} onEdit={() => handleEdit(schedule)} />
+      {createCourseMode && (
+        <AdminCard>
+          <h3 className="font-bold text-lg mb-4">Mata Kuliah Baru</h3>
+          <form onSubmit={handleCreateCourse} className="grid gap-4 md:grid-cols-3">
+            <Input label="Kode Matkul" value={courseForm.kodeMatkul} onChange={v => setCourseForm({ ...courseForm, kodeMatkul: v })} placeholder="Contoh: IF101" />
+            <Input label="Nama Matkul" value={courseForm.namaMatkul} onChange={v => setCourseForm({ ...courseForm, namaMatkul: v })} placeholder="Contoh: Pemrograman Web" />
+            <Input label="SKS" type="number" value={courseForm.sks.toString()} onChange={v => setCourseForm({ ...courseForm, sks: Number(v) })} />
+            <div className="md:col-span-3 flex gap-3">
+              <button type="submit" className="bg-[#5c3386] text-white px-4 py-2 rounded-lg font-bold">Simpan Matkul</button>
+              <button type="button" onClick={() => setCreateCourseMode(false)} className="border border-slate-300 px-4 py-2 rounded-lg font-bold">Batal</button>
+            </div>
+          </form>
+        </AdminCard>
+      )}
+
+      <div className="grid gap-4">
+        {courses.map(course => (
+          <div key={course.idMatkul} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+            <div 
+              className="flex cursor-pointer items-center justify-between p-5 hover:bg-slate-50"
+              onClick={() => setExpandedCourse(expandedCourse === course.idMatkul ? null : course.idMatkul)}
+            >
+              <div>
+                <h3 className="text-xl font-black text-slate-900">{course.namaMatkul}</h3>
+                <p className="text-sm font-bold text-slate-500">{course.kodeMatkul} • {course.sks} SKS • {course.kelas.length} Kelas</p>
               </div>
-            </article>
-          ))}
-          {!filteredSchedules.length ? <EmptyState text="Tidak ada jadwal yang cocok dengan pencarian." /> : null}
-        </div>
-      </AdminCard>
-      {deleteTarget ? <DeletePinModal target={deleteTarget} onClose={() => setDeleteTarget(null)} /> : null}
+              <div className="text-slate-400">
+                {expandedCourse === course.idMatkul ? <ChevronDown className="h-6 w-6" /> : <ChevronRight className="h-6 w-6" />}
+              </div>
+            </div>
+
+            {expandedCourse === course.idMatkul && (
+              <div className="border-t border-slate-100 bg-slate-50/50 p-5 space-y-5">
+                {course.kelas.map(cls => (
+                  <div key={cls.idKelas} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                      <div>
+                        <h4 className="text-lg font-bold text-[#5c3386]">Kelas {cls.namaKelas}</h4>
+                        <p className="text-sm font-semibold text-slate-500">{cls.studentsCount} Mahasiswa terdaftar</p>
+                      </div>
+                      <div className="flex gap-2 mt-3 sm:mt-0">
+                        <button
+                          onClick={() => setCreateSessionTarget(cls.idKelas)}
+                          className="flex items-center gap-1 rounded bg-[#5c3386]/10 px-3 py-1.5 text-xs font-bold text-[#5c3386] hover:bg-[#5c3386]/20"
+                        >
+                          <Plus className="h-3 w-3" /> Tambah Jadwal
+                        </button>
+                        <button
+                          onClick={() => setEnrollmentClass({ id: cls.idKelas, name: `${course.namaMatkul} - ${cls.namaKelas}` })}
+                          className="flex items-center gap-1 rounded bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800"
+                        >
+                          <Users className="h-3 w-3" /> Enroll Mahasiswa
+                        </button>
+                      </div>
+                    </div>
+
+                    {createSessionTarget === cls.idKelas && (
+                      <form onSubmit={(e) => handleCreateSession(e, cls.idKelas)} className="mb-4 rounded bg-slate-50 p-4 border border-slate-200 grid gap-4 sm:grid-cols-2">
+                        <Select label="Hari" value={sessionForm.hari} options={['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']} onChange={v => setSessionForm({...sessionForm, hari: v})} />
+                        <Input label="Ruangan" value={sessionForm.room} onChange={v => setSessionForm({...sessionForm, room: v})} placeholder="Contoh: Lab Komputer" />
+                        <TimeInput label="Jam Mulai" value={sessionForm.jamMulai} onChange={v => setSessionForm({...sessionForm, jamMulai: v})} />
+                        <TimeInput label="Jam Selesai" value={sessionForm.jamSelesai} onChange={v => setSessionForm({...sessionForm, jamSelesai: v})} />
+                        <Select label="Pengajar" value={sessionForm.lecturer} options={lecturerOptions} placeholder="Pilih Pengajar" className="sm:col-span-2" onChange={v => setSessionForm({...sessionForm, lecturer: v})} />
+                        <div className="sm:col-span-2 flex gap-2">
+                          <button type="submit" className="bg-[#5c3386] text-white px-3 py-1.5 rounded text-sm font-bold">Simpan Sesi</button>
+                          <button type="button" onClick={() => setCreateSessionTarget(null)} className="border border-slate-300 px-3 py-1.5 rounded text-sm font-bold">Batal</button>
+                        </div>
+                      </form>
+                    )}
+
+                    {cls.jadwal.length === 0 ? (
+                      <p className="text-sm font-semibold text-slate-400 italic">Belum ada sesi/jadwal untuk kelas ini.</p>
+                    ) : (
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {cls.jadwal.map(j => (
+                          <div key={j.idJadwal} className="rounded border border-slate-100 bg-white p-3 shadow-sm shadow-slate-200/50">
+                            <p className="font-bold text-slate-800">{j.hari}, {j.jamMulai} - {j.jamSelesai}</p>
+                            <p className="text-xs font-semibold text-slate-500 mt-1">Ruang: {j.ruangan}</p>
+                            <p className="text-xs font-semibold text-[#5c3386] mt-1">Dosen: {j.pengajar || 'Belum diatur'}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {createClassTarget === course.idMatkul ? (
+                  <form onSubmit={(e) => handleCreateClass(e, course.idMatkul)} className="flex items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="flex-1">
+                      <Input label="Nama Kelas" value={classForm.namaKelas} onChange={v => setClassForm({ namaKelas: v })} placeholder="Contoh: TI A" />
+                    </div>
+                    <button type="submit" className="h-[52px] bg-[#5c3386] text-white px-4 rounded-lg font-bold">Simpan</button>
+                    <button type="button" onClick={() => setCreateClassTarget(null)} className="h-[52px] border border-slate-300 px-4 rounded-lg font-bold">Batal</button>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => setCreateClassTarget(course.idMatkul)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 py-3 text-sm font-bold text-slate-500 hover:border-[#5c3386] hover:text-[#5c3386]"
+                  >
+                    <Plus className="h-4 w-4" /> Tambah Kelas Baru
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {enrollmentClass && (
+        <ClassEnrollmentModal
+          kelasId={enrollmentClass.id}
+          namaKelas={enrollmentClass.name}
+          onClose={() => setEnrollmentClass(null)}
+          onSuccess={() => {
+            setEnrollmentClass(null)
+            loadHierarchy()
+          }}
+        />
+      )}
     </div>
   )
 }
