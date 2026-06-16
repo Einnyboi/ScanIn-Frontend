@@ -23,10 +23,12 @@ export function ScheduleView({ users }: ScheduleViewProps) {
   const [createClassTarget, setCreateClassTarget] = useState<string | null>(null)
   const [createSessionTarget, setCreateSessionTarget] = useState<string | null>(null)
   const [editSessionTarget, setEditSessionTarget] = useState<string | null>(null)
+  const [editClassTarget, setEditClassTarget] = useState<string | null>(null)
 
   // Form states
   const [courseForm, setCourseForm] = useState({ kodeMatkul: '', namaMatkul: '', sks: 3 })
   const [classForm, setClassForm] = useState({ namaKelas: '' })
+  const [editClassForm, setEditClassForm] = useState({ namaKelas: '' })
   const [sessionForm, setSessionForm] = useState({ hari: 'Senin', jamMulai: '08:00', jamSelesai: '10:00', room: '', lecturer: '' })
 
   const loadHierarchy = async () => {
@@ -62,13 +64,28 @@ export function ScheduleView({ users }: ScheduleViewProps) {
     try {
       await apiRequest('/schedules/classes', {
         method: 'POST',
-        body: JSON.stringify({ namaKelas: classForm.namaKelas, idMatkul })
+        body: JSON.stringify({ ...classForm, idMatkul })
       })
       setCreateClassTarget(null)
       setClassForm({ namaKelas: '' })
       loadHierarchy()
     } catch {
       alert('Gagal membuat kelas')
+    }
+  }
+
+  const handleUpdateClass = async (e: React.FormEvent, idKelas: string) => {
+    e.preventDefault()
+    try {
+      await apiRequest(`/schedules/classes/${idKelas}`, {
+        method: 'PATCH',
+        body: JSON.stringify(editClassForm)
+      })
+      setEditClassTarget(null)
+      setEditClassForm({ namaKelas: '' })
+      loadHierarchy()
+    } catch {
+      alert('Gagal mengupdate kelas')
     }
   }
 
@@ -165,10 +182,21 @@ export function ScheduleView({ users }: ScheduleViewProps) {
                 {course.kelas.map(cls => (
                   <div key={cls.idKelas} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
-                      <div>
-                        <h4 className="text-lg font-bold text-[#5c3386]">Kelas {cls.namaKelas}</h4>
-                        <p className="text-sm font-semibold text-slate-500">{cls.studentsCount} Mahasiswa terdaftar</p>
-                      </div>
+                      {editClassTarget === cls.idKelas ? (
+                        <form onSubmit={(e) => handleUpdateClass(e, cls.idKelas)} className="flex items-center gap-2 mb-4 w-full sm:w-auto">
+                          <Input label="" value={editClassForm.namaKelas} onChange={v => setEditClassForm({ namaKelas: v })} placeholder="Nama Kelas Baru" />
+                          <button type="submit" className="bg-[#5c3386] text-white px-3 py-1.5 rounded text-sm font-bold h-10">Simpan</button>
+                          <button type="button" onClick={() => setEditClassTarget(null)} className="border border-slate-300 px-3 py-1.5 rounded text-sm font-bold h-10">Batal</button>
+                        </form>
+                      ) : (
+                        <div className="mb-4">
+                          <div className="flex items-center gap-2 cursor-pointer group" onClick={() => { setEditClassTarget(cls.idKelas); setEditClassForm({ namaKelas: cls.namaKelas }); }}>
+                            <h4 className="text-lg font-bold text-[#5c3386] group-hover:underline">Kelas {cls.namaKelas}</h4>
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">Edit</span>
+                          </div>
+                          <p className="text-sm font-semibold text-slate-500">{cls.studentsCount} Mahasiswa terdaftar</p>
+                        </div>
+                      )}
                       <div className="flex gap-2 mt-3 sm:mt-0">
                         <button
                           onClick={() => {

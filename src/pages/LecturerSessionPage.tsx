@@ -200,16 +200,19 @@ export function LecturerSessionPage({
       await html5QrCode.start(
         { facingMode: 'environment' },
         {
-          fps: 12,
-          qrbox: (viewfinderWidth, viewfinderHeight) => {
+          fps: 15,
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
             const minEdge = Math.min(viewfinderWidth, viewfinderHeight)
-            const size = Math.max(120, Math.min(280, Math.floor(minEdge * 0.72)))
+            const size = Math.max(200, Math.floor(minEdge * 0.85))
             return { height: size, width: size }
           },
           aspectRatio: 1,
           disableFlip: false,
-        },
-        (decodedText) => {
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true,
+          },
+        } as any,
+        (decodedText: string) => {
           void attemptCameraScan(decodedText)
         },
         undefined,
