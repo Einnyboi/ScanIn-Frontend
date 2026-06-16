@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { useState, useRef, type FormEvent } from 'react'
+import { Plus, Search, Upload } from 'lucide-react'
 import { apiRequest } from '../../utils/api'
 
 import type { AdminUser, AdminUserRole } from '../../utils/adminUsers'
@@ -39,6 +39,7 @@ export function UsersView({ onUsersChange, users }: UsersViewProps) {
   const [notice, setNotice] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<DeleteConfirmation | null>(null)
   const isEditing = Boolean(editingKey)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const filteredUsers = users.filter((user) => {
     const lowerQuery = query.toLowerCase()
@@ -115,6 +116,71 @@ export function UsersView({ onUsersChange, users }: UsersViewProps) {
     setPageMode('create')
   }
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setNotice('Memproses file CSV...')
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const text = event.target?.result as string
+      if (!text) return
+
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+      if (lines.length <= 1) {
+        setNotice('File CSV kosong atau tidak valid.')
+        return
+      }
+
+      // Check header
+      const header = lines[0].toLowerCase()
+      if (!(header.includes('nim') && header.includes('nama') && header.includes('kelas'))) {
+        setNotice('Format CSV tidak sesuai (kolom minimal: nim, nama, kelas rombel)')
+        return
+      }
+
+      const usersToCreate: AdminUser[] = []
+
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(',').map(p => p.trim())
+        if (parts.length < 3) continue
+
+        // Basic parsing: nim, nama, kelas rombel, tipe kelas
+        const nim = parts[0]
+        const nama = parts[1]
+        const kelasRombel = parts[2]
+        const tipeKelas = parts[3] ? parts[3].toUpperCase() : 'PAGI'
+
+        const email = `${nama.split(' ')[0].toLowerCase().replace(/[^a-z]/g, '')}.${nim}@stu.untar.ac.id`
+
+        usersToCreate.push({
+          id: nim,
+          name: nama,
+          email,
+          role: 'Mahasiswa',
+          status: 'Aktif',
+          kelasRombel,
+          tipeKelas: tipeKelas as any,
+        })
+      }
+
+      try {
+        const createdUsers = await apiRequest<AdminUser[]>('/admin-users/bulk', {
+          method: 'POST',
+          body: JSON.stringify(usersToCreate),
+        })
+
+        const nextUsers = [...createdUsers, ...users]
+        await onUsersChange(nextUsers, false)
+        setNotice(`Berhasil mengimpor ${createdUsers.length} mahasiswa dari CSV.`)
+      } catch {
+        setNotice('Gagal mengimpor dari CSV.')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = '' // reset
+  }
+
   const handleEdit = (user: AdminUser) => {
     setFormData(user)
     setEditingKey(getAdminUserKey(user))
@@ -173,6 +239,14 @@ export function UsersView({ onUsersChange, users }: UsersViewProps) {
             <Input label="Email Institusi" type="email" value={formData.email} onChange={(value) => setFormData({ ...formData, email: value })} />
             <Select label="Role" value={formData.role} options={['Mahasiswa', 'Pengajar', 'Admin']} onChange={(value) => setFormData({ ...formData, role: value as AdminUserRole })} />
             <Select label="Status" value={formData.status} options={['Aktif', 'Nonaktif']} onChange={(value) => setFormData({ ...formData, status: value as AdminUser['status'] })} />
+            
+            {formData.role === 'Mahasiswa' && (
+              <>
+                <Input label="Kelas Rombel" placeholder="Misal: TI A" value={formData.kelasRombel || ''} onChange={(value) => setFormData({ ...formData, kelasRombel: value })} />
+                <Select label="Tipe Kelas" value={formData.tipeKelas || 'PAGI'} options={['PAGI', 'SORE', 'MALAM']} onChange={(value) => setFormData({ ...formData, tipeKelas: value as any })} />
+              </>
+            )}
+
             <div className="flex items-end gap-2 sm:col-span-2 xl:col-span-1">
               <button type="submit" className="h-12 flex-1 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white transition hover:bg-[#4f2b73]">
                 {isEditing ? 'Simpan Perubahan' : 'Simpan Pengguna'}
@@ -212,10 +286,17 @@ export function UsersView({ onUsersChange, users }: UsersViewProps) {
               </button>
             ))}
           </div>
-          <button type="button" onClick={handleCreate} className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white shadow-lg shadow-[#5c3386]/20 transition hover:-translate-y-0.5 hover:bg-[#4f2b73]">
-            <Plus className="h-4 w-4" />
-            Tambah Pengguna
-          </button>
+          <div className="flex gap-2">
+            <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-slate-100 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-200 border border-slate-300 shadow-sm">
+              <Upload className="h-4 w-4" />
+              Import CSV
+            </button>
+            <button type="button" onClick={handleCreate} className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#5c3386] px-4 text-sm font-black text-white shadow-lg shadow-[#5c3386]/20 transition hover:-translate-y-0.5 hover:bg-[#4f2b73]">
+              <Plus className="h-4 w-4" />
+              Tambah Pengguna
+            </button>
+          </div>
         </div>
         {notice ? <p className="mt-4 rounded-[8px] bg-[#5c3386]/8 px-4 py-3 text-sm font-bold text-[#5c3386]">{notice}</p> : null}
       </AdminCard>
