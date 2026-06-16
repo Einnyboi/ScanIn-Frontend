@@ -8,6 +8,8 @@ export type AdminUser = {
   email: string
   role: AdminUserRole
   status: 'Aktif' | 'Nonaktif'
+  kelasRombel?: string
+  tipeKelas?: 'PAGI' | 'SORE' | 'MALAM'
 }
 
 const adminUserKey = 'scanin-admin-users'
