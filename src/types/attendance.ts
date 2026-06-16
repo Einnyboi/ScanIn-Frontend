@@ -11,6 +11,33 @@ export type CourseSchedule = {
   status: ClassStatus
 }
 
+export type HierarchyJadwal = {
+  id: string
+  idJadwal: string
+  hari: string
+  jamMulai: string
+  jamSelesai: string
+  ruangan: string
+  pengajar: string
+  status: ClassStatus
+}
+
+export type HierarchyKelas = {
+  id: string
+  idKelas: string
+  namaKelas: string
+  studentsCount: number
+  jadwal: HierarchyJadwal[]
+}
+
+export type CourseHierarchy = {
+  idMatkul: string
+  kodeMatkul: string
+  namaMatkul: string
+  sks: number
+  kelas: HierarchyKelas[]
+}
+
 export type AttendanceRecord = {
   id: string
   courseTitle: string
