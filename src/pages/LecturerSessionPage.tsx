@@ -189,7 +189,10 @@ export function LecturerSessionPage({
 
     try {
       if (html5QrCodeRef.current) {
-        await stopCamera()
+        if (html5QrCodeRef.current.isScanning) {
+          await html5QrCodeRef.current.stop()
+        }
+        html5QrCodeRef.current.clear()
       }
 
       const html5QrCode = new Html5Qrcode('qr-reader')
@@ -219,7 +222,19 @@ export function LecturerSessionPage({
       setCameraMessage('Gagal menyalakan kamera: ' + (error?.message || 'Izin ditolak.'))
     }
 
-    void handleStartCamera()
+  }
+
+  const handleToggleCamera = async () => {
+    if (isScannerActive) {
+      if (html5QrCodeRef.current?.isScanning) {
+        await html5QrCodeRef.current.stop()
+      }
+      html5QrCodeRef.current?.clear()
+      setIsScannerActive(false)
+      setCameraMessage('')
+    } else {
+      await handleStartCamera()
+    }
   }
 
   const handleManualMark = async (student: StudentPresensi, status: string) => {
@@ -587,29 +602,6 @@ function ScanCorner() {
   return <div className="rounded-[8px] border-[10px] border-[#5c3386] bg-white" />
 }
 
-function isScaninQrPayload(
-  payload: Partial<QrPayload> & { type?: string },
-): payload is QrPayload & { type: 'SCANIN_ATTENDANCE' } {
-  return (
-    payload.type === 'SCANIN_ATTENDANCE' &&
-    typeof payload.token === 'string' &&
-    typeof payload.courseId === 'string' &&
-    typeof payload.courseTitle === 'string' &&
-    typeof payload.room === 'string' &&
-    typeof payload.studentId === 'string' &&
-    typeof payload.studentName === 'string' &&
-    typeof payload.issuedAt === 'string' &&
-    typeof payload.expiresAt === 'string'
-  )
-}
-
-const getErrorMessage = (error: unknown) => {
-  if (error instanceof Error && error.message) {
-    return error.message
-  }
-
-  return 'izin kamera ditolak atau perangkat kamera tidak tersedia.'
-}
 
 function PeopleIcon() {
   return (

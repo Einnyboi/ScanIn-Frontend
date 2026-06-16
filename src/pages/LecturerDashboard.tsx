@@ -9,19 +9,13 @@ import {
 import { LecturerSessionPage } from './LecturerSessionPage'
 import type {
   CourseSchedule,
-  QrPayload,
   ScanRecord,
 } from '../types/attendance'
 import type { LocalSession } from '../types/auth'
 import {
   fetchScanRecordsFromBackend,
-  saveStoredScanRecord,
   scanRecordsChangedEvent,
 } from '../utils/attendanceStorage'
-import {
-  saveAttendanceNotification,
-} from '../utils/notifications'
-import { isQrExpired, loadActiveQrPayload } from '../utils/qr'
 import { apiRequest } from '../utils/api'
 import {
   getRuntimeLabel,
@@ -45,14 +39,6 @@ type LecturerMetric =
       'lecturer-present' | 'lecturer-session'
     >
   | null
-
-type LocalScanResult = {
-  success: boolean
-  title: string
-  message: string
-  studentName?: string
-  studentId?: string
-}
 
 export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps) {
   const [now, setNow] = useState(() => new Date())
@@ -130,142 +116,6 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
     }
   }
 
-  const handleLocalScan = (cameraPayload?: QrPayload): LocalScanResult => {
-    const payload = cameraPayload ?? loadActiveQrPayload()
-
-    if (!payload) {
-      const message = 'Belum ada QR mahasiswa aktif yang bisa dibaca.'
-      setScannerMessage(message)
-      return {
-        success: false,
-        title: 'QR belum ditemukan',
-        message,
-      }
-    }
-
-    if (!sessionCourse || payload.courseId !== sessionCourse.id) {
-      addScanRecord({
-        studentName: payload.studentName,
-        studentId: payload.studentId,
-        courseTitle: payload.courseTitle,
-        method: 'QR Code',
-        status: 'Tidak Valid',
-      })
-      const message = 'QR tidak cocok dengan sesi kelas yang dibuka.'
-      setScannerMessage(message)
-      return {
-        success: false,
-        title: 'QR tidak valid',
-        message,
-        studentName: payload.studentName,
-        studentId: payload.studentId,
-      }
-    }
-
-    if (isQrExpired(payload)) {
-      addScanRecord({
-        studentName: payload.studentName,
-        studentId: payload.studentId,
-        courseTitle: payload.courseTitle,
-        method: 'QR Code',
-        status: 'Kedaluwarsa',
-      })
-      const message = 'QR sudah kedaluwarsa. Minta mahasiswa tampilkan QR baru.'
-      setScannerMessage(message)
-      return {
-        success: false,
-        title: 'QR kedaluwarsa',
-        message,
-        studentName: payload.studentName,
-        studentId: payload.studentId,
-      }
-    }
-
-    const alreadyRecorded = scanRecords.some(
-      (record) =>
-        record.studentId === payload.studentId &&
-        record.courseTitle === payload.courseTitle &&
-        (record.status === 'Terverifikasi' || record.status === 'Terlambat'),
-    )
-
-    if (alreadyRecorded) {
-      const message = `${payload.studentName} sudah tercatat hadir untuk sesi ini.`
-      setScannerMessage(message)
-      return {
-        success: true,
-        title: 'Presensi sudah tercatat',
-        message,
-        studentName: payload.studentName,
-        studentId: payload.studentId,
-      }
-    }
-
-    addScanRecord({
-      studentName: payload.studentName,
-      studentId: payload.studentId,
-      courseTitle: payload.courseTitle,
-      method: 'QR Code',
-      status: 'Terverifikasi',
-    })
-    saveAttendanceNotification(payload.studentId, payload.courseTitle, 'Hadir')
-    const message = `${payload.studentName} (${payload.studentId}) berhasil diabsen hadir.`
-    setScannerMessage(message)
-    return {
-      success: true,
-      title: 'Presensi berhasil',
-      message,
-      studentName: payload.studentName,
-      studentId: payload.studentId,
-    }
-  }
-
-  const addScanRecord = (
-    record: Omit<ScanRecord, 'id' | 'scannedAt' | 'recordedAt'>,
-  ) => {
-    const scanTime = new Date()
-    const nextRecord: ScanRecord = {
-      ...record,
-      id: `scan-${scanTime.getTime()}`,
-      recordedAt: scanTime.toISOString(),
-      scannedAt: scanTime.toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }),
-    }
-
-    saveStoredScanRecord(nextRecord)
-    setScanRecords((records) => [nextRecord, ...records])
-  }
-
-  const handleManualMark = (
-    student: { studentId: string; studentName: string },
-    status: 'Terverifikasi' | 'Terlambat' | 'Tidak Hadir',
-  ) => {
-    if (!sessionCourse) {
-      setScannerMessage('Buka sesi kelas dulu sebelum input manual.')
-      return
-    }
-
-    addScanRecord({
-      studentName: student.studentName,
-      studentId: student.studentId,
-      courseTitle: sessionCourse.title,
-      method: 'Manual',
-      status,
-    })
-    saveAttendanceNotification(
-      student.studentId,
-      sessionCourse.title,
-      status === 'Terverifikasi' ? 'Hadir' : status,
-    )
-    setScannerMessage(
-      `${student.studentName} ditandai ${
-        status === 'Terverifikasi' ? 'hadir' : status.toLowerCase()
-      } lewat mode manual.`,
-    )
-  }
-
   const handleCloseSession = async () => {
     if (activeSessionId) {
       try {
@@ -294,11 +144,8 @@ export function LecturerDashboard({ session, onLogout }: LecturerDashboardProps)
         course={sessionCourse}
         sessionId={activeSessionId!}
         scannerMessage={scannerMessage}
-        scanRecords={scanRecords}
         onBack={() => setSessionCourse(null)}
         onCloseSession={handleCloseSession}
-        onLocalScan={handleLocalScan}
-        onManualMark={handleManualMark}
       />
     )
   }

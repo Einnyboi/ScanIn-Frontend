@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { ChevronRight, Download, FileText, Search, Loader2 } from 'lucide-react'
-import { useState, useMemo } from 'react'
-
+import { ChevronRight, Download, FileText, Search, Loader2, Eye, X } from 'lucide-react'
 import type { GeneratedReport, ReportKind } from '../../utils/reports'
 import { formatReportDate, reportToRows } from '../../utils/reports'
 import { type AdminAnalytics } from '../../utils/adminDashboard'
 import { downloadReport } from '../../utils/adminDashboard'
 import { type AdminUser } from '../../utils/adminUsers'
-import { type CourseSchedule } from '../../types/attendance'
 import { amber, maroon, purple } from './shared'
 
 import { AdminCard, SimpleStat, TrendStat } from './shared'
@@ -42,8 +39,9 @@ export function ReportsView({ analytics, onGenerateReport, reports, users = [] }
   const [liveReports, setLiveReports] = useState<LiveReport[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState('')
+  const [previewReport, setPreviewReport] = useState<GeneratedReport | null>(null)
 
-  const pengajars = useMemo(() => users.filter(u => u.role === 'DOSEN'), [users])
+  const pengajars = useMemo(() => users.filter(u => u.role === 'Pengajar'), [users])
 
   const reportActions: Array<{ description: string; kind: ReportKind; title: string }> = [
     { kind: 'attendance', title: 'Laporan Kehadiran Bulanan', description: 'Ringkasan hadir, terlambat, alpha, dan total sesi.' },
