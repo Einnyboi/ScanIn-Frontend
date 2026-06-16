@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
 import { LoginPage } from './pages/LoginPage'
@@ -14,9 +15,10 @@ import { StudentTicketPage } from './pages/StudentTicketPage'
 import { StatisticsPage } from './pages/StatisticsPage'
 
 import { loadSession, clearSession } from './lib/localSession'
+import type { LocalSession } from './types/auth'
 
 export default function App() {
-  const session = loadSession()
+  const [session, setSession] = useState<LocalSession | null>(() => loadSession())
   const role = session?.role?.toLowerCase()
   const resetToken = new URLSearchParams(window.location.search).get('token') ?? ''
   const isLecturerRole =
@@ -40,7 +42,7 @@ export default function App() {
     clearSession()
     localStorage.clear()
     sessionStorage.clear()
-    window.location.href = '/'
+    setSession(null)
   }
 
   return (
@@ -52,7 +54,7 @@ export default function App() {
             session ? (
               <Navigate to={getDashboardByRole()} replace />
             ) : (
-              <LoginPage />
+              <LoginPage onLogin={setSession} />
             )
           }
         />
@@ -63,7 +65,7 @@ export default function App() {
             session ? (
               <Navigate to={getDashboardByRole()} replace />
             ) : (
-              <LoginPage />
+              <LoginPage onLogin={setSession} />
             )
           }
         />

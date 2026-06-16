@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Clock,
   Bell,
+  Menu,
 } from 'lucide-react'
 import {
   useEffect,
@@ -11,10 +12,10 @@ import {
 
 import type { CorrectionTicket, CourseSchedule } from '../types/attendance'
 import type { LocalSession } from '../types/auth'
-import { 
-  buildAdminAnalytics, 
-  formatAdminDate, 
-  formatAdminTime 
+import {
+  buildAdminAnalytics,
+  formatAdminDate,
+  formatAdminTime
 } from '../utils/adminDashboard'
 import {
   fetchAdminUsersFromBackend,
@@ -154,6 +155,7 @@ export default function AdminDashboard({
   const [scanRecords, setScanRecords] = useState(() => loadStoredScanRecords())
   const [currentTime, setCurrentTime] = useState(() => new Date())
   const [adminNotice, setAdminNotice] = useState<AdminNotice | null>(null)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const analytics = useMemo(
     () => buildAdminAnalytics(scanRecords, schedules, currentTime),
     [currentTime, scanRecords, schedules],
@@ -168,6 +170,45 @@ export default function AdminDashboard({
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(new Date()), 1000)
     return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [activeView])
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) {
+      document.body.style.overflow = ''
+      return
+    }
+
+    const isMobileViewport = window.matchMedia('(max-width: 767px)').matches
+    if (!isMobileViewport) {
+      document.body.style.overflow = ''
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [isMobileMenuOpen])
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia('(min-width: 768px)')
+    const closeDrawerOnDesktop = () => {
+      if (desktopQuery.matches) {
+        setIsMobileMenuOpen(false)
+        document.body.style.overflow = ''
+      }
+    }
+
+    closeDrawerOnDesktop()
+    desktopQuery.addEventListener('change', closeDrawerOnDesktop)
+    return () => {
+      desktopQuery.removeEventListener('change', closeDrawerOnDesktop)
+    }
   }, [])
 
   useEffect(() => {
@@ -203,9 +244,9 @@ export default function AdminDashboard({
         }
       })
     }
-    
+
     reload()
-    
+
     window.addEventListener('storage', reload)
     window.addEventListener(ticketsChangedEvent, reload)
     return () => {
@@ -213,7 +254,7 @@ export default function AdminDashboard({
       window.removeEventListener(ticketsChangedEvent, reload)
     }
   }, [])
-  
+
   useEffect(() => {
     const reload = () => setReports(loadGeneratedReports())
 
@@ -354,7 +395,7 @@ export default function AdminDashboard({
 
     if (request.emailStatus === 'SMTP_NOT_CONFIGURED') {
       const smtpStatus = await fetchPasswordResetSmtpStatus().catch(() => null)
-      const missingConfig = smtpStatus?.missing?.length 
+      const missingConfig = smtpStatus?.missing?.length
         ? ` Lengkapi ${smtpStatus.missing.join(', ')} di file .env backend, lalu restart backend.`
         : ''
 
@@ -379,20 +420,43 @@ export default function AdminDashboard({
     <div className="admin-shell min-h-screen bg-[#f5f6fa] text-slate-950 md:grid md:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
       <AdminSidebar
         activeView={activeView}
+        isMobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
         onLogout={onLogout}
         onViewChange={setActiveView}
         session={session}
       />
 
       <main className="min-w-0">
-        <div className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-5 py-3 backdrop-blur sm:px-7">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <nav className="flex items-center gap-3 text-sm font-black text-slate-400" aria-label="Breadcrumb admin">
-              <span className="flex h-9 w-32 items-center"><img src="/logo-fti.png" alt="Logo FTI UNTAR" className="max-h-full w-full object-contain" /></span>
-              <span>Admin</span>
-              <span className="text-[#5c3386]">{meta.breadcrumb}</span>
-            </nav>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="z-20 border-b border-slate-200/80 bg-white/95 px-5 py-3 backdrop-blur sm:px-7 md:sticky md:top-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-[#5c3386] shadow-sm shadow-slate-900/5 transition hover:border-[#5c3386]/40 hover:bg-[#f4eff9] md:hidden"
+                aria-label="Buka menu admin"
+              >
+                <Menu className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <nav
+                className="flex min-w-0 items-center gap-2 text-sm font-black text-slate-400 sm:gap-3"
+                aria-label="Breadcrumb admin"
+              >
+                <span className="hidden h-9 w-32 items-center sm:flex">
+                  <img
+                    src="/logo-fti.png"
+                    alt="Logo FTI UNTAR"
+                    className="max-h-full w-full object-contain"
+                  />
+                </span>
+                <span className="shrink-0 text-slate-500">Admin</span>
+                <span className="min-w-0 truncate text-[#5c3386]">
+                  {meta.breadcrumb}
+                </span>
+              </nav>
+            </div>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <div
                 className="flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-[8px] border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 sm:min-w-fit sm:gap-2"
                 aria-label={`${formatAdminDate(currentTime)} ${formatAdminTime(currentTime)}`}

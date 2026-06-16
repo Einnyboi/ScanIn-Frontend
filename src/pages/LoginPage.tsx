@@ -15,7 +15,11 @@ import { isUntarAccount } from '../utils/accounts'
 import { loginWithBackend } from '../utils/authApi'
 import { validatePassword } from '../utils/password'
 
-export function LoginPage() {
+type LoginPageProps = {
+  onLogin?: (session: LocalSession | null) => void
+}
+
+export function LoginPage({ onLogin }: LoginPageProps = {}) {
   const [selectedRole, setSelectedRole] = useState<Role>('mahasiswa')
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
@@ -28,7 +32,7 @@ export function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const token = params.get('token')
-    
+
     if (window.location.pathname === '/reset-password' && token) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setResetToken(token)
@@ -93,6 +97,7 @@ export function LoginPage() {
 
     saveSession(nextSession)
     setSession(nextSession)
+    onLogin?.(nextSession)
     setError('')
     setPassword('')
   }
@@ -104,6 +109,7 @@ export function LoginPage() {
     setPassword('')
     setError('')
     setAuthView('login')
+    onLogin?.(null)
   }
 
   if (session?.role === 'mahasiswa') {

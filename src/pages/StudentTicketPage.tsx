@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, FileText, Send } from 'lucide-react'
 
@@ -65,7 +65,9 @@ export function StudentTicketPage({ session, onLogout }: StudentTicketPageProps)
     [schedules, selectedCourseId],
   )
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
     if (!selectedCourse) {
       setMessage('Pilih jadwal dulu sebelum mengirim tiket.')
       return
@@ -116,39 +118,42 @@ export function StudentTicketPage({ session, onLogout }: StudentTicketPageProps)
           Kembali ke Dashboard
         </button>
 
-        <section className="admin-surface grid overflow-hidden rounded-lg border border-white bg-white shadow-xl shadow-slate-900/7 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="bg-gradient-to-br from-[#5c3386] to-[#7d2228] p-6 text-white sm:p-8">
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white/15 shadow-lg shadow-black/10">
-              <FileText className="h-7 w-7" aria-hidden="true" />
+        <section className="admin-surface grid min-w-0 overflow-hidden rounded-lg border border-white bg-white shadow-xl shadow-slate-900/7 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="bg-gradient-to-br from-[#5c3386] to-[#7d2228] p-5 text-white sm:p-6 lg:p-8">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white/15 shadow-lg shadow-black/10 sm:h-14 sm:w-14">
+              <FileText className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
             </div>
-            <p className="mt-8 text-xs font-black uppercase tracking-[0.2em] text-white/70">
+            <p className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-white/70 lg:mt-8">
               Koreksi Presensi
             </p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+            <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl lg:text-4xl">
               Ajukan Tiket
             </h1>
-            <p className="mt-4 max-w-xl text-sm font-semibold leading-7 text-white/78">
+            <p className="mt-4 hidden max-w-xl text-sm font-semibold leading-7 text-white/78 sm:block">
               Gunakan tiket kalau QR tidak terbaca, koneksi bermasalah, atau ada
               kendala lain saat presensi. Tiket akan masuk ke pengajar dan admin.
             </p>
 
-            <div className="mt-8 rounded-lg border border-white/15 bg-white/10 p-4">
+            <div className="mt-5 rounded-lg border border-white/15 bg-white/10 p-4 lg:mt-8">
               <p className="text-sm font-black text-white">{session.name}</p>
               <p className="mt-1 text-sm font-semibold text-white/72">
-                {session.identity}
+                NIM: {session.identity}
               </p>
             </div>
           </div>
 
-          <div className="p-5 sm:p-8">
-            <div className="grid gap-5">
+          <div className="min-w-0 p-4 sm:p-6 lg:p-8">
+            <form onSubmit={handleSubmit} className="grid min-w-0 gap-5">
               <label className="grid gap-2">
                 <span className="text-sm font-black text-slate-700">
                   Mata Kuliah
                 </span>
                 <select
                   value={selectedCourseId}
-                  onChange={(event) => setSelectedCourseId(event.target.value)}
+                  onChange={(event) => {
+                    setSelectedCourseId(event.target.value)
+                    setMessage('')
+                  }}
                   className="h-12 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
                 >
                   {!schedules.length ? (
@@ -182,14 +187,20 @@ export function StudentTicketPage({ session, onLogout }: StudentTicketPageProps)
                 </span>
                 <textarea
                   value={reason}
-                  onChange={(event) => setReason(event.target.value)}
+                  onChange={(event) => {
+                    setReason(event.target.value)
+                    setMessage('')
+                  }}
                   placeholder="Contoh: QR tidak terdeteksi saat kelas berlangsung, sudah mencoba beberapa kali."
-                  className="min-h-36 resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12"
+                  className="min-h-28 resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5c3386] focus:ring-4 focus:ring-[#5c3386]/12 sm:min-h-36"
                 />
               </label>
 
               {message ? (
-                <p className="rounded-lg border border-[#5c3386]/15 bg-[#5c3386]/8 px-4 py-3 text-sm font-black leading-6 text-[#5c3386]">
+                <p
+                  aria-live="polite"
+                  className="rounded-lg border border-[#5c3386]/15 bg-[#5c3386]/8 px-4 py-3 text-sm font-black leading-6 text-[#5c3386]"
+                >
                   {message}
                 </p>
               ) : null}
@@ -203,8 +214,7 @@ export function StudentTicketPage({ session, onLogout }: StudentTicketPageProps)
                   Batal
                 </button>
                 <button
-                  type="button"
-                  onClick={handleSubmit}
+                  type="submit"
                   disabled={isSubmitting}
                   className="flex h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-[#5c3386] px-4 text-sm font-black text-white shadow-lg shadow-[#5c3386]/20 transition hover:-translate-y-0.5 hover:bg-[#4f2b73] disabled:translate-y-0 disabled:bg-slate-300"
                 >
@@ -212,7 +222,7 @@ export function StudentTicketPage({ session, onLogout }: StudentTicketPageProps)
                   {isSubmitting ? 'Mengirim...' : 'Kirim Tiket'}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </section>
       </div>

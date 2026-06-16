@@ -88,8 +88,14 @@ export function LecturerSessionPage({
 
   useEffect(() => {
     return () => {
-      if (html5QrCodeRef.current?.isScanning) {
-        html5QrCodeRef.current.stop().catch(console.error)
+      const scanner = html5QrCodeRef.current
+      html5QrCodeRef.current = null
+
+      if (scanner?.isScanning) {
+        scanner
+          .stop()
+          .then(() => scanner.clear())
+          .catch(console.error)
       }
     }
   }, [])
@@ -182,15 +188,28 @@ export function LecturerSessionPage({
     if (html5QrCodeRef.current?.isScanning) return
 
     try {
-      const html5QrCode = new Html5Qrcode("qr-reader")
+      if (html5QrCodeRef.current) {
+        await stopCamera()
+      }
+
+      const html5QrCode = new Html5Qrcode('qr-reader')
       html5QrCodeRef.current = html5QrCode
       await html5QrCode.start(
         { facingMode: 'environment' },
-        { fps: 10 },
+        {
+          fps: 12,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight)
+            const size = Math.max(120, Math.min(280, Math.floor(minEdge * 0.72)))
+            return { height: size, width: size }
+          },
+          aspectRatio: 1,
+          disableFlip: false,
+        },
         (decodedText) => {
           void attemptCameraScan(decodedText)
         },
-        undefined
+        undefined,
       )
       setIsScannerActive(true)
       setCameraMessage('Kamera aktif. Scanner akan membaca QR secara otomatis.')
@@ -199,6 +218,8 @@ export function LecturerSessionPage({
       console.error(error)
       setCameraMessage('Gagal menyalakan kamera: ' + (error?.message || 'Izin ditolak.'))
     }
+
+    void handleStartCamera()
   }
 
   const handleManualMark = async (student: StudentPresensi, status: string) => {
@@ -421,7 +442,7 @@ export function LecturerSessionPage({
 
           <div className="mx-auto mt-7 max-w-md rounded-[8px] bg-slate-100 p-4">
             <div className="scanner-frame relative aspect-square overflow-hidden rounded-[8px] bg-slate-950 text-white shadow-inner">
-              <div id="qr-reader" className="absolute inset-0 h-full w-full object-cover [&>video]:object-cover" />
+              <div id="qr-reader" className="scanin-qr-reader absolute inset-0" />
               {!isScannerActive ? (
                 <div className="absolute inset-0 z-10 flex h-full items-center justify-center bg-slate-950 px-8 text-center">
                   <div>
@@ -483,10 +504,14 @@ export function LecturerSessionPage({
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <button
               type="button"
-              onClick={handleStartCamera}
-              className="flex h-12 items-center justify-center rounded-[8px] border border-[#5c3386] bg-white px-4 text-sm font-black text-[#5c3386] transition hover:bg-[#5c3386] hover:text-white"
+              onClick={handleToggleCamera}
+              className={`flex h-12 items-center justify-center rounded-[8px] border px-4 text-sm font-black transition ${
+                isScannerActive
+                  ? 'border-[#7d2228] bg-[#7d2228] text-white hover:bg-[#691c21]'
+                  : 'border-[#5c3386] bg-white text-[#5c3386] hover:bg-[#5c3386] hover:text-white'
+              }`}
             >
-              Aktifkan Kamera
+              {isScannerActive ? 'Matikan Kamera' : 'Aktifkan Kamera'}
             </button>
             <button
               type="button"
@@ -560,6 +585,30 @@ function SessionStatusPill({ status }: { status: string }) {
 
 function ScanCorner() {
   return <div className="rounded-[8px] border-[10px] border-[#5c3386] bg-white" />
+}
+
+function isScaninQrPayload(
+  payload: Partial<QrPayload> & { type?: string },
+): payload is QrPayload & { type: 'SCANIN_ATTENDANCE' } {
+  return (
+    payload.type === 'SCANIN_ATTENDANCE' &&
+    typeof payload.token === 'string' &&
+    typeof payload.courseId === 'string' &&
+    typeof payload.courseTitle === 'string' &&
+    typeof payload.room === 'string' &&
+    typeof payload.studentId === 'string' &&
+    typeof payload.studentName === 'string' &&
+    typeof payload.issuedAt === 'string' &&
+    typeof payload.expiresAt === 'string'
+  )
+}
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  return 'izin kamera ditolak atau perangkat kamera tidak tersedia.'
 }
 
 function PeopleIcon() {
