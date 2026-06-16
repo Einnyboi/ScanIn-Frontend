@@ -508,51 +508,53 @@ export default function AdminDashboard({
             </div>
           </header>
 
-          <div className="mt-6">
-            {activeView === 'dashboard' ? (
-              <DashboardView
-                analytics={analytics}
-                onSendReset={handleSendReset}
-                passwordRequests={passwordRequests}
-                schedules={schedules}
-                scanRecordsCount={scanRecords.length}
-                tickets={tickets}
-                users={users}
-              />
-            ) : null}
-            {activeView === 'users' ? (
-              <UsersView users={users} onUsersChange={handleUsersChange} />
-            ) : null}
-            {activeView === 'schedule' ? (
-              <ScheduleView
-                schedules={schedules}
-                users={users}
-                onSchedulesChange={handleSchedulesChange}
-              />
-            ) : null}
-            {activeView === 'attendance' ? (
-              <AttendanceView scanRecords={scanRecords} />
-            ) : null}
-            {activeView === 'reports' ? (
-              <ReportsView
-                analytics={analytics}
-                onGenerateReport={handleGenerateReport}
-                reports={reports}
-              />
-            ) : null}
-            {activeView === 'tickets' ? (
-              <TicketsView tickets={tickets} onTicketAction={handleTicketAction} />
-            ) : null}
-            {activeView === 'notifications' ? (
-              <NotificationsView
-                complaints={complaints}
-                onSendReset={handleSendReset}
-                onTicketAction={handleTicketAction}
-                passwordRequests={passwordRequests}
-                tickets={tickets}
-              />
-            ) : null}
-          </div>
+        <div className="mt-6">
+          {activeView === 'dashboard' ? (
+            <DashboardView
+              analytics={analytics}
+              onSendReset={handleSendReset}
+              passwordRequests={passwordRequests}
+              schedules={schedules}
+              scanRecordsCount={scanRecords.length}
+              tickets={tickets}
+              users={users}
+            />
+          ) : null}
+          {activeView === 'users' ? (
+            <UsersView users={users} onUsersChange={handleUsersChange} />
+          ) : null}
+          {activeView === 'schedule' ? (
+            <ScheduleView
+              schedules={schedules}
+              users={users}
+              onSchedulesChange={handleSchedulesChange}
+            />
+          ) : null}
+          {activeView === 'attendance' ? (
+            <AttendanceView scanRecords={scanRecords} />
+          ) : null}
+          {activeView === 'reports' ? (
+            <ReportsView
+              analytics={analytics}
+              onGenerateReport={handleGenerateReport}
+              reports={reports}
+              users={users}
+              schedules={schedules}
+            />
+          ) : null}
+          {activeView === 'tickets' ? (
+            <TicketsView tickets={tickets} onTicketAction={handleTicketAction} />
+          ) : null}
+          {activeView === 'notifications' ? (
+            <NotificationsView
+              complaints={complaints}
+              onSendReset={handleSendReset}
+              onTicketAction={handleTicketAction}
+              passwordRequests={passwordRequests}
+              tickets={tickets}
+            />
+          ) : null}
+        </div>
         </div>
       </main>
     </div>

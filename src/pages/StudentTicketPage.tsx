@@ -92,7 +92,7 @@ export function StudentTicketPage({ session, onLogout }: StudentTicketPageProps)
     try {
       await saveCorrectionTicket(newTicket)
       setReason('')
-      setMessage('Tiket berhasil dikirim dan masuk ke pengajar serta admin.')
+      setMessage('Tiket berhasil dikirim ke admin.')
     } catch {
       setMessage('Tiket tersimpan lokal, tapi belum berhasil sinkron ke backend.')
     } finally {

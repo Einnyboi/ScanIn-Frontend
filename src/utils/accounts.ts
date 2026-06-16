@@ -14,7 +14,7 @@ export const getAccountPlaceholder = (role: Role) => {
   }
 
   if (role === 'pengajar') {
-    return 'contoh: 198503152010121001@untar.ac.id'
+    return 'contoh: 198503152010121001@fti.untar.ac.id'
   }
 
   return 'contoh: admin.fti@untar.ac.id'
@@ -26,7 +26,7 @@ export const getAccountDomainHelp = (role: Role) => {
   }
 
   if (role === 'pengajar') {
-    return 'Pengajar wajib memakai akun UNTAR dengan domain @untar.ac.id.'
+    return 'Pengajar wajib memakai akun UNTAR dengan domain @fti.untar.ac.id.'
   }
 
   return 'Admin wajib memakai akun UNTAR dengan domain @untar.ac.id.'
@@ -37,6 +37,10 @@ export const isUntarAccount = (email: string, role: Role) => {
 
   if (role === 'mahasiswa') {
     return cleanEmail.endsWith('@stu.untar.ac.id')
+  }
+
+  if (role === 'pengajar') {
+    return cleanEmail.endsWith('@fti.untar.ac.id')
   }
 
   return cleanEmail.endsWith('@untar.ac.id')
@@ -82,6 +86,10 @@ export const getResetEmailForIdentity = (
 ) => {
   if (role === 'mahasiswa') {
     return `${identity.trim()}@stu.untar.ac.id`
+  }
+
+  if (role === 'pengajar') {
+    return `${identity.trim()}@fti.untar.ac.id`
   }
 
   return `${identity.trim()}@untar.ac.id`

@@ -85,6 +85,7 @@ export function ScheduleView({ onSchedulesChange, schedules, users }: ScheduleVi
         await onSchedulesChange(nextSchedules, false) 
 
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id: _id, ...postPayload } = normalizedSchedule
 
         const response = await apiRequest<Partial<CourseSchedule>>('/schedules', {
@@ -186,8 +187,7 @@ export function ScheduleView({ onSchedulesChange, schedules, users }: ScheduleVi
               <TimeInput label="Jam Selesai" value={scheduleTime.end} onChange={(value) => handleScheduleTimeChange('end', value)} />
             </div>
 
-            <Input label="Ruangan" value={formData.room} placeholder="Contoh: B-204" inputClassName="h-16 text-base sm:text-lg" onChange={(value) => setFormData({ ...formData, room: value })} />
-            <Input label="Kapasitas" type="number" value={String(formData.students)} placeholder="30" inputClassName="h-16 text-base sm:text-lg" onChange={(value) => setFormData({ ...formData, students: Number(value) })} />
+            <Input label="Ruangan" value={formData.room} placeholder="Contoh: B-204" className="lg:col-span-2" inputClassName="h-16 text-base sm:text-lg" onChange={(value) => setFormData({ ...formData, room: value })} />
 
             <Select label="Status Sesi" value={formData.status} options={['active', 'upcoming', 'closed']} className="lg:col-span-2" selectClassName="h-16 text-base sm:text-lg" onChange={(value) => setFormData({ ...formData, status: value as CourseSchedule['status'] })} />
 
@@ -216,7 +216,7 @@ export function ScheduleView({ onSchedulesChange, schedules, users }: ScheduleVi
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-4">
         <SimpleStat label="Total Jadwal" value={schedules.length} />
-        <SimpleStat label="Mata Kuliah" tone="purple" value={schedules.length} />
+        <SimpleStat label="Mata Kuliah" tone="purple" value={new Set(schedules.map((item) => item.title)).size} />
         <SimpleStat label="Ruangan Aktif" tone="green" value={new Set(schedules.map((item) => item.room)).size} />
         <SimpleStat label="Pengajar Aktif" tone="blue" value={new Set(schedules.map((item) => item.lecturer)).size} />
       </section>

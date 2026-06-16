@@ -49,7 +49,7 @@ export const loginWithBackend = async (
       role,
       identity: normalizeIdentity({
         role,
-        identity: user.id,
+        identity: undefined,
         email: user.username,
       }),
       name: user.nama,
